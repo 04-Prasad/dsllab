@@ -1,0 +1,41 @@
+{
+  "model_type": "RandomForestClassifier",
+  "precision": 1.0,
+  "recall": 1.0,
+  "f1_score": 1.0,
+  "roc_auc": 1.0,
+  "confusion_matrix": [
+    [
+      264,
+      0
+    ],
+    [
+      0,
+      3
+    ]
+  ],
+  "feature_cols": [
+    "total_transactions",
+    "incoming_transaction_count",
+    "outgoing_transaction_count",
+    "incoming_amount_total",
+    "outgoing_amount_total",
+    "average_incoming_amount",
+    "average_outgoing_amount",
+    "max_transaction_amount",
+    "unique_senders",
+    "unique_receivers",
+    "transaction_velocity_1h",
+    "transaction_velocity_24h",
+    "dormancy_days",
+    "rapid_movement_ratio",
+    "account_age_days",
+    "in_degree",
+    "out_degree",
+    "degree",
+    "pagerank",
+    "risky_neighbor_count",
+    "risky_neighbor_ratio",
+    "circular_flow_indicator"
+  ]
+}
