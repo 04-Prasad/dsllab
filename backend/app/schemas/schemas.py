@@ -96,3 +96,59 @@ class GraphEdge(BaseModel):
 class GraphNetworkOut(BaseModel):
     nodes: List[GraphNode]
     edges: List[GraphEdge]
+
+
+# ── Enriched 3D Network Graph schemas ──────────────────────────────────────────
+
+class EnrichedGraphNode(BaseModel):
+    id: str
+    label: str
+    risk_score: float
+    risk_level: str
+    account_type: str
+    # Graph role classification
+    role: str = "NORMAL"          # HUB / BRIDGE / MULE / RING_MEMBER / SUSPICIOUS_NEIGHBOUR / NORMAL
+    ring_id: Optional[str] = None
+    # EWS signals
+    ews_codes: List[str] = []     # ["EWS-002", "EWS-005"]
+    ews_types: List[str] = []     # ["FAN_IN_SPIKE", "RAPID_FUND_MOVEMENT"]
+    ews_count: int = 0
+    # Active alert
+    alert_id: Optional[str] = None
+    alert_severity: Optional[str] = None
+    # Transaction features
+    incoming_count: int = 0
+    outgoing_count: int = 0
+    incoming_total: float = 0.0
+    outgoing_total: float = 0.0
+    # Graph centrality metrics
+    pagerank: float = 0.0
+    in_degree: int = 0
+    out_degree: int = 0
+    betweenness: float = 0.0
+    risky_neighbor_ratio: float = 0.0
+    # Fraud label
+    is_fraud: bool = False
+
+
+class EnrichedGraphEdge(BaseModel):
+    source: str
+    target: str
+    amount: float
+    count: int
+    tx_id: Optional[str] = None   # representative transaction ID
+
+
+class GraphStats(BaseModel):
+    total_nodes: int = 0
+    fraud_nodes: int = 0
+    total_edges: int = 0
+    rings: int = 0
+    critical_nodes: int = 0
+    high_nodes: int = 0
+
+
+class EnrichedGraphNetworkOut(BaseModel):
+    nodes: List[EnrichedGraphNode]
+    edges: List[EnrichedGraphEdge]
+    stats: GraphStats

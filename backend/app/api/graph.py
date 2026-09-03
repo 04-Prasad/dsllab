@@ -8,9 +8,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from backend.app.db.database import get_db
 from backend.app.models.models import Account, Transaction
-from backend.app.schemas.schemas import GraphNetworkOut, GraphNode, GraphEdge
+from backend.app.schemas.schemas import (
+    GraphNetworkOut, GraphNode, GraphEdge,
+    EnrichedGraphNetworkOut,
+)
+from backend.app.services.graph_service import build_enriched_graph
 
 router = APIRouter(prefix="/graph", tags=["Graph"])
+
 
 @router.get("/search", response_model=GraphNetworkOut)
 def search_graph(
@@ -87,3 +92,29 @@ def search_graph(
     ]
 
     return GraphNetworkOut(nodes=nodes, edges=edges)
+
+
+@router.get("/network", response_model=EnrichedGraphNetworkOut)
+def get_network_graph(
+    account_id: Optional[str] = Query(None, description="Centre graph around this account"),
+    risk_threshold: float = Query(0.0, ge=0.0, le=100.0, description="Minimum risk score (0–100)"),
+    fraud_only: bool = Query(False, description="Return only fraud/high-risk nodes"),
+    ring_members_only: bool = Query(False, description="Return only ring-member nodes"),
+    limit: int = Query(200, ge=10, le=500),
+    db: Session = Depends(get_db),
+):
+    """
+    Enriched graph endpoint for the 3D Transaction Network Visualizer.
+
+    Returns nodes with: risk_level, role (HUB/BRIDGE/MULE/RING_MEMBER…),
+    ring_id, EWS codes & types, alert info, graph centrality metrics,
+    and directed edges with aggregated amounts. Also returns summary stats.
+    """
+    return build_enriched_graph(
+        db=db,
+        limit=limit,
+        risk_threshold=risk_threshold,
+        fraud_only=fraud_only,
+        ring_members_only=ring_members_only,
+        account_id=account_id,
+    )

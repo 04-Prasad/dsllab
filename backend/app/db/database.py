@@ -7,7 +7,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-DB_PATH = os.getenv("DATABASE_URL", "sqlite:///./graphguard.db")
+from pathlib import Path
+
+# Always resolve graphguard.db relative to the project root directory
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
+DEFAULT_DB = f"sqlite:///{ROOT_DIR / 'graphguard.db'}"
+DB_PATH = os.getenv("DATABASE_URL", DEFAULT_DB)
 
 engine = create_engine(
     DB_PATH,

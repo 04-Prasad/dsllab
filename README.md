@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # GraphGuard — Graph Intelligence & Fraud Analytics System
 
 GraphGuard is an intelligent transaction-monitoring and graph-based fraud-detection system. Traditional fraud detection systems analyze individual financial transactions in isolation. GraphGuard instead constructs a directed network graph where **Accounts are Nodes** and **Transactions are Edges**, uncovering complex financial crime structures such as **fan-in mule networks**, **fan-out schemes**, **dormancy bursts**, **rapid fund movement**, and **circular money flows**.
@@ -156,3 +157,9 @@ gp/
 │   └── test_pipeline.py  # End-to-end unit test suite
 └── README.md
 ```
+=======
+# GraphGuard
+Real-Time Money Mule Network Detection Using Graph Neural Networks.
+# NOTE:
+MAKE YOUR OWN BRACH
+>>>>>>> acdf58b8d22304e67fe36a9c37d54f59812ad652
