@@ -150,16 +150,16 @@ export default function NetworkPage() {
     <div className="flex flex-col h-[calc(100vh-4rem)] -m-6 overflow-hidden">
 
       {/* ─ Top bar ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800 bg-[#0a0e1a] shrink-0">
+      <div className="flex items-center justify-between px-6 py-3 border-b border-[rgba(186,215,247,0.12)] bg-[#05060f] shrink-0 z-20">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+          <div className="w-8 h-8 rounded-full bg-[#663af3] flex items-center justify-center shadow-[0_0_16px_rgba(102,58,243,0.5)] border border-[rgba(186,215,247,0.2)]">
             <Network className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h1 className="text-base font-bold text-white tracking-tight leading-none">
+            <h1 className="text-base font-display font-medium text-skywash tracking-tight leading-none">
               Transaction Network
             </h1>
-            <p className="text-[10px] text-gray-400 font-mono mt-0.5">3D Graph Intelligence Layer</p>
+            <p className="text-[10px] text-[#9da7ba] font-mono mt-0.5">3D Graph Intelligence Layer</p>
           </div>
         </div>
 
@@ -173,7 +173,7 @@ export default function NetworkPage() {
       </div>
 
       {/* ─ Main workspace ──────────────────────────────────────────────────── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
 
         {/* Sidebar */}
         <NetworkSidebar
@@ -189,11 +189,11 @@ export default function NetworkPage() {
         />
 
         {/* Graph area */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-[#050814] relative">
+        <div className="flex-1 flex flex-col overflow-hidden bg-[#05060f] relative">
 
           {/* Search error banner */}
           {searchError && (
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 bg-red-950/90 border border-red-700 rounded-xl text-xs text-red-300 shadow-xl">
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 bg-red-950/90 border border-red-700 rounded-xl text-xs text-red-300 shadow-xl backdrop-blur-md">
               <AlertCircle className="w-3.5 h-3.5" />
               {searchError}
               <button onClick={() => setSearchError(null)} className="ml-2 text-red-400 hover:text-red-200">✕</button>
@@ -202,12 +202,12 @@ export default function NetworkPage() {
 
           {/* Loading overlay */}
           {loading && (
-            <div className="absolute inset-0 z-30 bg-[#050814]/80 flex flex-col items-center justify-center gap-4 backdrop-blur-sm">
+            <div className="absolute inset-0 z-30 bg-[#05060f]/80 flex flex-col items-center justify-center gap-4 backdrop-blur-md">
               <div className="relative w-14 h-14">
-                <div className="absolute inset-0 rounded-full border-4 border-indigo-900" />
-                <div className="absolute inset-0 rounded-full border-4 border-t-indigo-500 animate-spin" />
+                <div className="absolute inset-0 rounded-full border-4 border-[#663af3]/20" />
+                <div className="absolute inset-0 rounded-full border-4 border-t-[#663af3] animate-spin" />
               </div>
-              <p className="text-sm font-mono text-gray-400 animate-pulse">
+              <p className="text-sm font-mono text-[#c7d3ea] animate-pulse">
                 Loading transaction network…
               </p>
             </div>
@@ -215,27 +215,27 @@ export default function NetworkPage() {
 
           {/* Error overlay */}
           {error && !loading && (
-            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 text-gray-400">
+            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 text-[#9da7ba] bg-[#05060f]/90 backdrop-blur-md">
               <AlertCircle className="w-10 h-10 text-red-500" />
               <p className="text-sm font-semibold text-red-400">Unable to load transaction network.</p>
-              <p className="text-xs text-gray-500 max-w-xs text-center">{error}</p>
+              <p className="text-xs text-[#9da7ba] max-w-xs text-center">{error}</p>
               <button
                 onClick={handleReload}
-                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors"
+                className="btn-void-violet text-xs px-4 py-2 flex items-center gap-1.5"
               >
-                <RefreshCw className="w-4 h-4" /> Retry
+                <RefreshCw className="w-4 h-4" /> Retry Connection
               </button>
             </div>
           )}
 
           {/* Empty state */}
           {!loading && !error && filteredNodes.length === 0 && data && (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 text-gray-500">
-              <Network className="w-10 h-10 opacity-30" />
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 text-[#9da7ba]">
+              <Network className="w-10 h-10 opacity-30 text-[#b6d9fc]" />
               <p className="text-sm">No accounts match the selected filters.</p>
               <button
                 onClick={resetFilters}
-                className="text-xs text-indigo-400 hover:text-indigo-300 underline"
+                className="text-xs text-[#663af3] hover:text-[#b6d9fc] underline"
               >
                 Clear filters
               </button>
@@ -260,23 +260,23 @@ export default function NetworkPage() {
             {/* Hover tooltip */}
             {hoveredNode && hoveredNode.id !== selectedNode?.id && (
               <div className="absolute top-4 left-1/2 -translate-x-1/2 pointer-events-none z-20">
-                <div className="px-3 py-1.5 bg-gray-900/95 border border-gray-700 rounded-lg text-xs text-white font-mono shadow-xl flex items-center gap-2">
-                  <span className="font-bold">{hoveredNode.id}</span>
+                <div className="px-3 py-1.5 glass-panel text-xs text-white font-mono shadow-2xl flex items-center gap-2 border border-[rgba(186,215,247,0.2)]">
+                  <span className="font-bold text-[#b6d9fc]">{hoveredNode.id}</span>
                   <span
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                      hoveredNode.risk_level === "CRITICAL" ? "bg-red-900 text-red-400" :
-                      hoveredNode.risk_level === "HIGH"     ? "bg-orange-900 text-orange-400" :
-                      hoveredNode.risk_level === "MEDIUM"   ? "bg-yellow-900 text-yellow-400" :
-                                                              "bg-emerald-900 text-emerald-400"
+                    className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold border ${
+                      hoveredNode.risk_level === "CRITICAL" ? "bg-red-950/80 text-red-400 border-red-800" :
+                      hoveredNode.risk_level === "HIGH"     ? "bg-amber-950/80 text-amber-400 border-amber-800" :
+                      hoveredNode.risk_level === "MEDIUM"   ? "bg-yellow-950/80 text-yellow-400 border-yellow-800" :
+                                                              "bg-emerald-950/80 text-emerald-400 border-emerald-800"
                     }`}
                   >
                     {hoveredNode.risk_level}
                   </span>
                   {hoveredNode.role !== "NORMAL" && (
-                    <span className="text-gray-400">{hoveredNode.role}</span>
+                    <span className="text-[#9da7ba]">{hoveredNode.role}</span>
                   )}
                   {hoveredNode.ews_count > 0 && (
-                    <span className="text-amber-400">⚠ {hoveredNode.ews_count}</span>
+                    <span className="text-amber-300">⚠ {hoveredNode.ews_count}</span>
                   )}
                 </div>
               </div>
@@ -284,7 +284,7 @@ export default function NetworkPage() {
           </div>
 
           {/* Bottom toolbar */}
-          <div className="shrink-0 px-4 py-2 border-t border-gray-800 bg-[#0a0e1a] flex items-center justify-between gap-4">
+          <div className="shrink-0 px-6 py-2.5 border-t border-[rgba(186,215,247,0.12)] bg-[#05060f] flex items-center justify-between gap-4 z-20">
             <RiskLegend />
             <NetworkControls
               onZoomIn={handleZoomIn}

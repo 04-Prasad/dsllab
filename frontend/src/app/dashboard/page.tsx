@@ -161,24 +161,28 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in-up">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-2 border-b border-gray-800">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-[rgba(186,215,247,0.12)]">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
+          <div className="flex items-center space-x-2 text-[11px] font-eyebrow text-[#9da7ba] mb-1">
+            <span>Graph Intelligence</span>
+            <span>•</span>
+            <span>Realtime Fraud Analytics</span>
+          </div>
+          <h1 className="text-3xl font-display font-medium text-skywash tracking-tight">
             Fraud Monitoring Overview
           </h1>
-          <p className="text-sm text-gray-400">
-            Graph intelligence, EWS rule signals, and GNN node classification
-            metrics.
+          <p className="text-sm text-[#9da7ba] mt-1">
+            Deterministic EWS rule signals, PyG GraphSAGE classification, and fused risk scores.
           </p>
         </div>
         <button
           onClick={loadData}
-          className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs text-gray-200 font-medium flex items-center space-x-2 transition-colors"
+          className="btn-pill-ghost flex items-center space-x-2 shrink-0 cursor-pointer"
         >
-          <RefreshCw className="w-3.5 h-3.5" />
-          <span>Refresh Data</span>
+          <RefreshCw className="w-3.5 h-3.5 text-[#b6d9fc]" />
+          <span>Refresh Metrics</span>
         </button>
       </div>
 
@@ -187,16 +191,18 @@ export default function DashboardPage() {
         {KPI_CONFIGS.map(({ key, label, sub, icon: Icon, iconColor, valueColor }) => (
           <div
             key={key}
-            className="p-4 bg-[#111827] border border-gray-800 rounded-xl space-y-2 hover:border-gray-700 transition-colors"
+            className="glass-card p-4 space-y-2 relative overflow-hidden group"
           >
-            <div className="flex items-center justify-between text-gray-400">
+            <div className="flex items-center justify-between text-[#9da7ba]">
               <span className="text-xs font-medium">{label}</span>
-              <Icon className={`w-4 h-4 ${iconColor}`} />
+              <div className="w-7 h-7 rounded-full bg-[rgba(186,214,247,0.06)] border border-[rgba(186,215,247,0.12)] flex items-center justify-center">
+                <Icon className={`w-3.5 h-3.5 ${iconColor}`} />
+              </div>
             </div>
             <div className={`text-2xl font-bold font-mono ${valueColor}`}>
               {(summary[key] ?? 0).toLocaleString()}
             </div>
-            <div className="text-[11px] text-gray-500">{sub}</div>
+            <div className="text-[11px] text-[#9da7ba] truncate">{sub}</div>
           </div>
         ))}
       </div>
@@ -206,66 +212,66 @@ export default function DashboardPage() {
         {/* Left 2/3: Tables */}
         <div className="lg:col-span-2 space-y-6">
           {/* Top Risk Accounts Table */}
-          <div className="bg-[#111827] border border-gray-800 rounded-xl p-5 space-y-4">
+          <div className="glass-card p-6 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold text-white">
+                <h3 className="text-lg font-display font-medium text-[#d8ecf8]">
                   Top High-Risk Accounts
                 </h3>
-                <p className="text-xs text-gray-400">
-                  Accounts requiring immediate investigator review.
+                <p className="text-xs text-[#9da7ba]">
+                  Accounts requiring immediate investigator triage and deep-dive graph audit.
                 </p>
               </div>
               <Link
                 href="/accounts?risk_level=CRITICAL"
-                className="text-xs text-indigo-400 hover:text-indigo-300 font-medium flex items-center space-x-1"
+                className="text-xs text-[#663af3] hover:text-[#b6d9fc] font-medium flex items-center space-x-1 transition-colors"
               >
-                <span>View All</span>
+                <span>View All Accounts</span>
                 <ArrowUpRight className="w-3.5 h-3.5" />
               </Link>
             </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-gray-900/60 text-gray-400 border-b border-gray-800">
+                <thead className="bg-[rgba(186,214,247,0.04)] text-[#9da7ba] border-b border-[rgba(186,215,247,0.12)]">
                   <tr>
-                    <th className="p-3">Account ID</th>
-                    <th className="p-3">Type</th>
-                    <th className="p-3">Risk Level</th>
-                    <th className="p-3">Score</th>
-                    <th className="p-3 text-right">Action</th>
+                    <th className="p-3.5 font-eyebrow text-[10px]">Account ID</th>
+                    <th className="p-3.5 font-eyebrow text-[10px]">Type</th>
+                    <th className="p-3.5 font-eyebrow text-[10px]">Risk Level</th>
+                    <th className="p-3.5 font-eyebrow text-[10px]">Fused Score</th>
+                    <th className="p-3.5 font-eyebrow text-[10px] text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-800/60">
+                <tbody className="divide-y divide-[rgba(186,215,247,0.08)]">
                   {summary.top_risk_accounts?.map((acc: any) => (
                     <tr
                       key={acc.account_id}
-                      className="hover:bg-gray-800/40 transition-colors"
+                      className="hover:bg-[rgba(186,214,247,0.06)] transition-colors"
                     >
-                      <td className="p-3 font-mono font-bold text-indigo-300">
+                      <td className="p-3.5 font-mono font-bold text-[#b6d9fc]">
                         {acc.account_id}
                       </td>
-                      <td className="p-3 text-gray-300">{acc.account_type}</td>
-                      <td className="p-3">
+                      <td className="p-3.5 text-[#c7d3ea]">{acc.account_type}</td>
+                      <td className="p-3.5">
                         <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-bold border ${
                             acc.risk_level === "CRITICAL"
-                              ? "bg-red-950 text-red-400 border border-red-800"
+                              ? "bg-red-950/60 text-red-400 border-red-800/80"
                               : acc.risk_level === "HIGH"
-                              ? "bg-amber-950 text-amber-400 border border-amber-800"
-                              : "bg-emerald-950 text-emerald-400 border border-emerald-800"
+                              ? "bg-amber-950/60 text-amber-400 border-amber-800/80"
+                              : "bg-emerald-950/60 text-emerald-400 border-emerald-800/80"
                           }`}
                         >
                           {acc.risk_level}
                         </span>
                       </td>
-                      <td className="p-3 font-mono font-bold text-white">
+                      <td className="p-3.5 font-mono font-bold text-[#ffffff]">
                         {Math.round(acc.risk_score)} / 100
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3.5 text-right">
                         <Link
                           href={`/accounts/${acc.account_id}`}
-                          className="px-2.5 py-1 bg-indigo-600/80 hover:bg-indigo-600 text-white rounded text-[11px] font-medium transition-colors inline-flex items-center space-x-1"
+                          className="btn-void-violet text-[11px] px-3 py-1.5 inline-flex items-center space-x-1"
                         >
                           <span>Investigate</span>
                           <ExternalLink className="w-3 h-3" />
@@ -279,19 +285,19 @@ export default function DashboardPage() {
           </div>
 
           {/* Recent Alerts */}
-          <div className="bg-[#111827] border border-gray-800 rounded-xl p-5 space-y-4">
+          <div className="glass-card p-6 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold text-white">
+                <h3 className="text-lg font-display font-medium text-[#d8ecf8]">
                   Recent Investigator Alerts
                 </h3>
-                <p className="text-xs text-gray-400">
-                  Latest high-severity fraud detection alerts.
+                <p className="text-xs text-[#9da7ba]">
+                  Realtime triggered EWS & GNN alerts queued for investigator workflow.
                 </p>
               </div>
               <Link
                 href="/alerts"
-                className="text-xs text-indigo-400 hover:text-indigo-300 font-medium flex items-center space-x-1"
+                className="text-xs text-[#663af3] hover:text-[#b6d9fc] font-medium flex items-center space-x-1 transition-colors"
               >
                 <span>Alert Queue</span>
                 <ArrowUpRight className="w-3.5 h-3.5" />
@@ -302,34 +308,34 @@ export default function DashboardPage() {
               {summary.recent_alerts?.map((alert: any) => (
                 <div
                   key={alert.alert_id}
-                  className="p-3 bg-[#0F1423] border border-gray-800 rounded-lg flex items-start justify-between gap-3 hover:border-gray-700 transition-colors"
+                  className="p-3.5 bg-[rgba(5,6,15,0.6)] border border-[rgba(186,215,247,0.12)] rounded-xl flex items-start justify-between gap-3 hover:border-[rgba(186,215,247,0.24)] transition-all"
                 >
                   <div className="space-y-1 min-w-0">
                     <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                      <span className="font-mono text-xs font-bold text-indigo-400">
+                      <span className="font-mono text-xs font-bold text-[#b6d9fc]">
                         {alert.alert_id}
                       </span>
-                      <span className="font-mono text-xs font-bold text-white">
+                      <span className="font-mono text-xs font-bold text-[#ffffff]">
                         {alert.account_id}
                       </span>
                       <span
-                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                        className={`px-2 py-0.5 rounded-md text-[9px] font-bold border ${
                           alert.severity === "CRITICAL"
-                            ? "bg-red-950 text-red-400"
-                            : "bg-amber-950 text-amber-400"
+                            ? "bg-red-950/60 text-red-400 border-red-800/60"
+                            : "bg-amber-950/60 text-amber-400 border-amber-800/60"
                         }`}
                       >
                         {alert.severity}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-300 truncate">{alert.title}</p>
+                    <p className="text-xs text-[#c7d3ea] truncate">{alert.title}</p>
                   </div>
 
                   <Link
                     href={`/accounts/${alert.account_id}`}
-                    className="px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 text-[11px] font-medium rounded transition-colors shrink-0"
+                    className="btn-pill-ghost text-[11px] px-3 py-1 shrink-0"
                   >
-                    View
+                    View Alert
                   </Link>
                 </div>
               ))}
@@ -340,12 +346,12 @@ export default function DashboardPage() {
         {/* Right 1/3: Charts */}
         <div className="space-y-6">
           {/* Donut Chart */}
-          <div className="bg-[#111827] border border-gray-800 rounded-xl p-5 space-y-4">
+          <div className="glass-card p-6 space-y-4">
             <div>
-              <h3 className="text-base font-bold text-white">
+              <h3 className="text-lg font-display font-medium text-[#d8ecf8]">
                 Risk Distribution
               </h3>
-              <p className="text-xs text-gray-400">Account breakdown by level.</p>
+              <p className="text-xs text-[#9da7ba]">Systemwide account risk tier classification.</p>
             </div>
 
             <div className="h-52">
@@ -366,9 +372,10 @@ export default function DashboardPage() {
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "#1F2937",
-                      borderColor: "#374151",
+                      backgroundColor: "#05060f",
+                      borderColor: "rgba(186, 215, 247, 0.2)",
                       color: "#FFF",
+                      borderRadius: "8px",
                       fontSize: "12px",
                     }}
                   />
@@ -376,7 +383,7 @@ export default function DashboardPage() {
               </ResponsiveContainer>
             </div>
 
-            <div className="space-y-2 pt-1 border-t border-gray-800">
+            <div className="space-y-2 pt-2 border-t border-[rgba(186,215,247,0.12)]">
               {riskPieData.map((item) => (
                 <div key={item.name} className="flex items-center justify-between text-xs">
                   <div className="flex items-center space-x-2">
@@ -384,9 +391,9 @@ export default function DashboardPage() {
                       className="w-2.5 h-2.5 rounded-full"
                       style={{ backgroundColor: item.color }}
                     />
-                    <span className="text-gray-300">{item.name}</span>
+                    <span className="text-[#c7d3ea]">{item.name}</span>
                   </div>
-                  <span className="font-mono text-white font-bold">
+                  <span className="font-mono text-[#ffffff] font-bold">
                     {item.value.toLocaleString()}
                   </span>
                 </div>
@@ -395,33 +402,34 @@ export default function DashboardPage() {
           </div>
 
           {/* Bar Chart */}
-          <div className="bg-[#111827] border border-gray-800 rounded-xl p-5 space-y-4">
-            <h3 className="text-base font-bold text-white">Account Risk Counts</h3>
+          <div className="glass-card p-6 space-y-4">
+            <h3 className="text-lg font-display font-medium text-[#d8ecf8]">Account Risk Counts</h3>
             <div className="h-40">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={riskBarData} barCategoryGap="30%">
                   <CartesianGrid
                     strokeDasharray="3 3"
-                    stroke="#1F2937"
+                    stroke="rgba(186, 215, 247, 0.08)"
                     vertical={false}
                   />
                   <XAxis
                     dataKey="level"
-                    tick={{ fill: "#9CA3AF", fontSize: 10 }}
+                    tick={{ fill: "#9da7ba", fontSize: 10 }}
                     axisLine={false}
                     tickLine={false}
                   />
                   <YAxis
-                    tick={{ fill: "#9CA3AF", fontSize: 10 }}
+                    tick={{ fill: "#9da7ba", fontSize: 10 }}
                     axisLine={false}
                     tickLine={false}
                     width={35}
                   />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "#1F2937",
-                      borderColor: "#374151",
+                      backgroundColor: "#05060f",
+                      borderColor: "rgba(186, 215, 247, 0.2)",
                       fontSize: "12px",
+                      borderRadius: "8px",
                     }}
                   />
                   <Bar dataKey="count" radius={[4, 4, 0, 0]}>

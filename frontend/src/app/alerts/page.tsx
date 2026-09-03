@@ -64,39 +64,43 @@ export default function AlertsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in-up">
       {/* Header */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-2 border-b border-gray-800">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-[rgba(186,215,247,0.12)]">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
+          <div className="flex items-center space-x-2 text-[11px] font-eyebrow text-[#9da7ba] mb-1">
+            <span>Triage Queue</span>
+            <span>•</span>
+            <span>Alert Operations</span>
+          </div>
+          <h1 className="text-3xl font-display font-medium text-skywash tracking-tight">
             Investigator Alert Queue
           </h1>
-          <p className="text-sm text-gray-400">
-            Triaged fraud alerts generated from EWS rules and GNN node
-            classification.
+          <p className="text-sm text-[#9da7ba] mt-1">
+            Triaged fraud alerts generated from EWS rules and GNN node classification.
           </p>
         </div>
         <button
           onClick={loadAlerts}
-          className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs text-gray-200 font-medium flex items-center space-x-2 transition-colors"
+          className="btn-pill-ghost flex items-center space-x-2 shrink-0 cursor-pointer"
         >
-          <RefreshCw className="w-3.5 h-3.5" />
+          <RefreshCw className="w-3.5 h-3.5 text-[#b6d9fc]" />
           <span>Refresh</span>
         </button>
       </div>
 
       {/* Status Filter */}
-      <div className="p-4 bg-[#111827] border border-gray-800 rounded-xl flex flex-wrap items-center gap-2">
-        <Filter className="w-4 h-4 text-gray-400" />
-        <span className="text-xs text-gray-400 font-medium mr-1">Status:</span>
+      <div className="glass-card p-4 flex flex-wrap items-center gap-2">
+        <Filter className="w-4 h-4 text-[#9da7ba]" />
+        <span className="text-xs font-eyebrow text-[#9da7ba] mr-1">Status:</span>
         {STATUSES.map((st) => (
           <button
             key={st || "ALL"}
             onClick={() => setStatusFilter(st)}
-            className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+            className={`px-3.5 py-1 rounded-full text-xs font-semibold border transition-all ${
               statusFilter === st
-                ? "bg-indigo-600 text-white"
-                : "bg-gray-800 text-gray-400 hover:text-white"
+                ? "bg-[#663af3] text-white border-[#663af3] shadow-[0_0_12px_rgba(102,58,243,0.4)]"
+                : "bg-[rgba(186,214,247,0.03)] text-[#c7d3ea] border-[rgba(186,215,247,0.12)] hover:bg-[rgba(186,214,247,0.08)]"
             }`}
           >
             {st || "ALL"}
@@ -105,53 +109,53 @@ export default function AlertsPage() {
       </div>
 
       {/* Alert Table */}
-      <div className="bg-[#111827] border border-gray-800 rounded-xl overflow-hidden">
+      <div className="glass-card overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center text-gray-400 font-mono text-sm animate-pulse">
+          <div className="p-12 text-center text-[#9da7ba] font-mono text-sm animate-pulse">
             Loading Alert Queue…
           </div>
         ) : alerts.length === 0 ? (
           <div className="p-12 text-center space-y-2">
             <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto" />
-            <p className="text-sm font-semibold text-gray-300">
+            <p className="text-sm font-semibold text-[#c7d3ea]">
               No alerts match status filter "{statusFilter || "ALL"}".
             </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-gray-900/80 text-gray-400 border-b border-gray-800">
+              <thead className="bg-[rgba(186,214,247,0.04)] text-[#9da7ba] border-b border-[rgba(186,215,247,0.12)]">
                 <tr>
-                  <th className="p-3.5">Alert ID</th>
-                  <th className="p-3.5">Account</th>
-                  <th className="p-3.5">Severity</th>
-                  <th className="p-3.5">Score</th>
-                  <th className="p-3.5">Title</th>
-                  <th className="p-3.5">Status</th>
-                  <th className="p-3.5">Update Status</th>
-                  <th className="p-3.5 text-right">Actions</th>
+                  <th className="p-3.5 font-eyebrow text-[10px]">Alert ID</th>
+                  <th className="p-3.5 font-eyebrow text-[10px]">Account</th>
+                  <th className="p-3.5 font-eyebrow text-[10px]">Severity</th>
+                  <th className="p-3.5 font-eyebrow text-[10px]">Score</th>
+                  <th className="p-3.5 font-eyebrow text-[10px]">Title</th>
+                  <th className="p-3.5 font-eyebrow text-[10px]">Status</th>
+                  <th className="p-3.5 font-eyebrow text-[10px]">Update Status</th>
+                  <th className="p-3.5 font-eyebrow text-[10px] text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-800/60">
+              <tbody className="divide-y divide-[rgba(186,215,247,0.08)]">
                 {alerts.map((alt: any) => (
                   <tr
                     key={alt.alert_id}
-                    className="hover:bg-gray-800/40 transition-colors"
+                    className="hover:bg-[rgba(186,214,247,0.06)] transition-colors"
                   >
-                    <td className="p-3.5 font-mono font-bold text-indigo-300">
+                    <td className="p-3.5 font-mono font-bold text-[#b6d9fc]">
                       {alt.alert_id}
                     </td>
                     <td className="p-3.5 font-mono font-bold">
                       <Link
                         href={`/accounts/${alt.account_id}`}
-                        className="text-indigo-400 hover:underline"
+                        className="text-[#663af3] hover:text-[#b6d9fc] hover:underline"
                       >
                         {alt.account_id}
                       </Link>
                     </td>
                     <td className="p-3.5">
                       <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${severityBadge(
+                        className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold ${severityBadge(
                           alt.severity
                         )}`}
                       >
@@ -162,16 +166,16 @@ export default function AlertsPage() {
                       {Math.round(alt.risk_score)}
                     </td>
                     <td className="p-3.5 max-w-xs">
-                      <div className="font-semibold text-gray-200">
+                      <div className="font-semibold text-[#d8ecf8]">
                         {alt.title}
                       </div>
-                      <div className="text-[11px] text-gray-400 line-clamp-1">
+                      <div className="text-[11px] text-[#9da7ba] line-clamp-1">
                         {alt.description}
                       </div>
                     </td>
                     <td className="p-3.5">
                       <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${statusBadge(
+                        className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold ${statusBadge(
                           alt.status
                         )}`}
                       >
@@ -185,10 +189,10 @@ export default function AlertsPage() {
                         onChange={(e) =>
                           handleStatusUpdate(alt.alert_id, e.target.value)
                         }
-                        className="bg-gray-900 border border-gray-700 text-[11px] text-gray-300 rounded px-2 py-1 focus:outline-none focus:border-indigo-500 disabled:opacity-50"
+                        className="bg-[rgba(199,211,234,0.06)] border border-[rgba(186,215,247,0.12)] text-[11px] text-[#c7d3ea] rounded-md px-2.5 py-1 focus:outline-none focus:border-[rgba(186,215,247,0.3)] disabled:opacity-50"
                       >
                         {STATUSES.filter(Boolean).map((s) => (
-                          <option key={s} value={s}>
+                          <option key={s} value={s} className="bg-[#05060f] text-white">
                             {s}
                           </option>
                         ))}
@@ -197,7 +201,7 @@ export default function AlertsPage() {
                     <td className="p-3.5 text-right">
                       <Link
                         href={`/accounts/${alt.account_id}`}
-                        className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[11px] font-medium inline-flex items-center space-x-1 transition-colors"
+                        className="btn-void-violet text-[11px] px-3 py-1 inline-flex items-center space-x-1"
                       >
                         <span>Inspect</span>
                         <ExternalLink className="w-3 h-3" />

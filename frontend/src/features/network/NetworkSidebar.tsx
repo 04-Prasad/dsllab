@@ -42,28 +42,28 @@ export default function NetworkSidebar({
   };
 
   return (
-    <aside className="w-60 min-w-[15rem] bg-[#0d111e] border-r border-gray-800 flex flex-col p-4 gap-5 overflow-y-auto">
+    <aside className="w-60 min-w-[15rem] bg-[#05060f]/90 border-r border-[rgba(186,215,247,0.12)] backdrop-blur-xl flex flex-col p-4 gap-5 overflow-y-auto z-10">
 
       {/* Search */}
       <section>
-        <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2 block">
+        <label className="text-[11px] font-eyebrow text-[#9da7ba] mb-2 block">
           Search Account
         </label>
         <form onSubmit={handleSearch} className="flex gap-1.5">
           <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9da7ba]" />
             <input
               type="text"
               value={searchVal}
               onChange={(e) => setSearchVal(e.target.value)}
               placeholder="e.g. A102"
-              className="w-full pl-8 pr-2 py-1.5 bg-gray-900 border border-gray-800 rounded-lg text-xs text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition-colors"
+              className="w-full pl-8 pr-2 py-1.5 bg-[rgba(199,211,234,0.06)] border border-[rgba(186,215,247,0.12)] rounded-md text-xs text-white placeholder-[#9da7ba] focus:outline-none focus:border-[rgba(186,215,247,0.3)] transition-colors"
             />
           </div>
           <button
             type="submit"
             disabled={loading || !searchVal.trim()}
-            className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition-colors disabled:opacity-40"
+            className="px-3 py-1.5 bg-[#663af3] hover:bg-[#7549f5] text-white rounded-md text-xs font-semibold transition-colors disabled:opacity-40 shadow-[0_0_12px_rgba(102,58,243,0.4)]"
           >
             →
           </button>
@@ -75,7 +75,7 @@ export default function NetworkSidebar({
             <button
               key={id}
               onClick={() => { setSearchVal(id); onSearch(id); }}
-              className="px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-[10px] font-mono font-semibold transition-colors"
+              className="px-2 py-0.5 rounded-md bg-[rgba(186,214,247,0.06)] hover:bg-[rgba(186,214,247,0.14)] border border-[rgba(186,215,247,0.12)] text-[#c7d3ea] text-[10px] font-mono font-semibold transition-colors"
             >
               {id}
             </button>
@@ -85,7 +85,7 @@ export default function NetworkSidebar({
 
       {/* Quick Filters */}
       <section>
-        <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2 block">
+        <label className="text-[11px] font-eyebrow text-[#9da7ba] mb-2 block">
           Quick View
         </label>
         <div className="space-y-1">
@@ -93,10 +93,10 @@ export default function NetworkSidebar({
             <button
               key={key}
               onClick={() => onQuickFilter(key)}
-              className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+              className={`w-full text-left px-3 py-2 rounded-full text-xs font-semibold border transition-all ${
                 quickFilter === key
                   ? `${color} border-current ring-1 ring-current/30`
-                  : "bg-gray-900 border-gray-800 text-gray-400 hover:bg-gray-800"
+                  : "bg-[rgba(186,214,247,0.03)] border-[rgba(186,215,247,0.12)] text-[#c7d3ea] hover:bg-[rgba(186,214,247,0.08)]"
               }`}
             >
               {label}
@@ -108,10 +108,10 @@ export default function NetworkSidebar({
       {/* Risk Threshold Slider */}
       <section>
         <div className="flex items-center justify-between mb-2">
-          <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+          <label className="text-[11px] font-eyebrow text-[#9da7ba]">
             Risk Threshold
           </label>
-          <span className="font-mono text-xs text-indigo-400 font-bold">
+          <span className="font-mono text-xs text-[#b6d9fc] font-bold">
             {filters.riskThreshold}%
           </span>
         </div>
@@ -122,9 +122,9 @@ export default function NetworkSidebar({
           step={5}
           value={filters.riskThreshold}
           onChange={(e) => onFilterChange({ riskThreshold: Number(e.target.value) })}
-          className="w-full accent-indigo-500 cursor-pointer"
+          className="w-full accent-[#663af3] cursor-pointer"
         />
-        <div className="flex justify-between text-[10px] text-gray-600 mt-0.5">
+        <div className="flex justify-between text-[10px] text-[#9da7ba] mt-0.5">
           <span>0%</span>
           <span>100%</span>
         </div>
@@ -133,8 +133,8 @@ export default function NetworkSidebar({
       {/* Advanced Filters */}
       <section>
         <div className="flex items-center gap-1.5 mb-2">
-          <SlidersHorizontal className="w-3.5 h-3.5 text-gray-400" />
-          <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+          <SlidersHorizontal className="w-3.5 h-3.5 text-[#9da7ba]" />
+          <label className="text-[11px] font-eyebrow text-[#9da7ba]">
             Filters
           </label>
         </div>
@@ -156,8 +156,8 @@ export default function NetworkSidebar({
                 <div
                   className={`w-4 h-4 rounded border transition-colors ${
                     filters[key]
-                      ? "bg-indigo-600 border-indigo-500"
-                      : "bg-gray-800 border-gray-600 group-hover:border-gray-500"
+                      ? "bg-[#663af3] border-[#663af3]"
+                      : "bg-[rgba(199,211,234,0.06)] border-[rgba(186,215,247,0.2)] group-hover:border-[rgba(186,215,247,0.4)]"
                   }`}
                 >
                   {filters[key] && (
@@ -167,7 +167,7 @@ export default function NetworkSidebar({
                   )}
                 </div>
               </div>
-              <span className="text-xs text-gray-300 group-hover:text-white transition-colors">{label}</span>
+              <span className="text-xs text-[#c7d3ea] group-hover:text-white transition-colors">{label}</span>
             </label>
           ))}
         </div>
@@ -175,8 +175,8 @@ export default function NetworkSidebar({
 
       {/* Stats mini summary */}
       {stats && (
-        <section className="mt-auto">
-          <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+        <section className="mt-auto pt-3 border-t border-[rgba(186,215,247,0.12)]">
+          <div className="text-[11px] font-eyebrow text-[#9da7ba] mb-2">
             Network
           </div>
           <div className="space-y-1 text-xs">
@@ -186,7 +186,7 @@ export default function NetworkSidebar({
               { label: "Edges", value: stats.total_edges },
               { label: "Rings Detected", value: stats.rings, color: "text-purple-400" },
             ].map(({ label, value, color }) => (
-              <div key={label} className="flex justify-between text-gray-400">
+              <div key={label} className="flex justify-between text-[#9da7ba]">
                 <span>{label}</span>
                 <span className={`font-mono font-bold ${color ?? "text-white"}`}>{value}</span>
               </div>
@@ -199,9 +199,9 @@ export default function NetworkSidebar({
       <button
         onClick={() => { onResetFilters(); onReload(); }}
         disabled={loading}
-        className="w-full flex items-center justify-center gap-1.5 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 rounded-lg text-xs font-medium transition-colors disabled:opacity-40"
+        className="btn-pill-ghost w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium cursor-pointer disabled:opacity-40"
       >
-        <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+        <RefreshCw className={`w-3.5 h-3.5 text-[#b6d9fc] ${loading ? "animate-spin" : ""}`} />
         Reset & Reload
       </button>
     </aside>
