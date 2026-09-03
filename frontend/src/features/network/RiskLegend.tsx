@@ -3,58 +3,48 @@
 import React from "react";
 
 const RISK_LEVELS = [
-  { label: "LOW",      color: "bg-emerald-500" },
-  { label: "MEDIUM",   color: "bg-yellow-500" },
-  { label: "HIGH",     color: "bg-orange-500" },
-  { label: "CRITICAL", color: "bg-red-500" },
-];
-
-const ROLES = [
-  { symbol: "●", label: "HUB",          desc: "Major transaction centre",    color: "text-indigo-400" },
-  { symbol: "◆", label: "BRIDGE",       desc: "Connects separate clusters",  color: "text-blue-400" },
-  { symbol: "○", label: "MULE",         desc: "Fund forwarder",              color: "text-orange-400" },
-  { symbol: "◉", label: "RING MEMBER",  desc: "Circular flow participant",   color: "text-purple-400" },
+  { label: "Low",      color: "bg-[#22c55e] shadow-[0_0_6px_rgba(34,197,94,0.4)]" },
+  { label: "Medium",   color: "bg-[#facc15] shadow-[0_0_6px_rgba(250,204,21,0.4)]" },
+  { label: "High",     color: "bg-[#f97316] shadow-[0_0_6px_rgba(249,115,22,0.4)]" },
+  { label: "Critical", color: "bg-[#ef4444] shadow-[0_0_8px_rgba(239,68,68,0.6)]" },
+  { label: "Ring",     color: "bg-[#a855f7] shadow-[0_0_6px_rgba(168,85,247,0.4)]" },
 ];
 
 export default function RiskLegend() {
   return (
-    <div className="flex items-start gap-6 px-4 py-3 bg-[#0d111e]/90 border border-gray-800/60 rounded-xl text-xs backdrop-blur-sm">
+    <div className="flex items-center gap-5 px-4 py-2.5 bg-[#0f172a]/90 border border-[#1e293b] rounded-xl text-xs backdrop-blur-md shadow-lg">
       {/* Risk Scale */}
       <div>
-        <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">Risk Scale</div>
-        <div className="flex items-center gap-1.5">
+        <div className="text-[10px] text-[#94a3b8] font-eyebrow mb-1">RISK LEVEL</div>
+        <div className="flex items-center gap-2.5">
           {RISK_LEVELS.map(({ label, color }) => (
-            <div key={label} className="flex items-center gap-1">
+            <div key={label} className="flex items-center gap-1.5">
               <span className={`w-2.5 h-2.5 rounded-full ${color}`} />
-              <span className="text-gray-400">{label}</span>
+              <span className="text-[#f8fafc] text-[11px] font-medium">{label}</span>
             </div>
           ))}
         </div>
       </div>
 
       {/* Divider */}
-      <div className="w-px h-8 bg-gray-800 self-center" />
+      <div className="w-px h-6 bg-[#1e293b]" />
 
-      {/* Node Roles */}
+      {/* Transaction flow indicator */}
       <div>
-        <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">Node Roles</div>
-        <div className="flex flex-wrap gap-x-4 gap-y-1">
-          {ROLES.map(({ symbol, label, desc, color }) => (
-            <div key={label} className="flex items-center gap-1.5">
-              <span className={`font-bold ${color}`}>{symbol}</span>
-              <span className="text-gray-400">
-                <span className="font-semibold text-gray-200">{label}</span> — {desc}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Particles note */}
-      <div className="ml-auto self-center hidden xl:block">
-        <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Edges</div>
-        <div className="text-gray-400">
-          <span className="text-indigo-400">→</span> Particles = money direction
+        <div className="text-[10px] text-[#94a3b8] font-eyebrow mb-1">TRANSACTION FLOW</div>
+        <div className="flex items-center gap-3 text-[11px]">
+          <div className="flex items-center gap-1.5">
+            <span className="w-4 h-0.5 bg-[#64748b]/50 rounded" />
+            <span className="text-[#94a3b8]">Normal</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-4 h-0.5 bg-orange-500 rounded" />
+            <span className="text-orange-300 font-medium">Suspicious</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[#38bdf8] font-bold">→</span>
+            <span className="text-[#38bdf8] font-medium">Money Flow</span>
+          </div>
         </div>
       </div>
     </div>

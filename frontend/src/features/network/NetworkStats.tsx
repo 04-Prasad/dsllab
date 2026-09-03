@@ -14,50 +14,50 @@ const STAT_CARDS = [
     key: "total_nodes" as keyof GraphStats,
     label: "Accounts",
     icon: Users,
-    color: "text-indigo-400",
-    bg: "bg-indigo-950/40 border-indigo-900/50",
-  },
-  {
-    key: "fraud_nodes" as keyof GraphStats,
-    label: "Fraud Nodes",
-    icon: AlertTriangle,
-    color: "text-red-400",
-    bg: "bg-red-950/40 border-red-900/50",
+    color: "text-[#38bdf8]",
+    bg: "bg-[#0f172a]/90 border-[#1e293b]",
   },
   {
     key: "total_edges" as keyof GraphStats,
     label: "Transactions",
     icon: GitBranch,
-    color: "text-cyan-400",
-    bg: "bg-cyan-950/40 border-cyan-900/50",
+    color: "text-indigo-400",
+    bg: "bg-[#0f172a]/90 border-[#1e293b]",
+  },
+  {
+    key: "fraud_nodes" as keyof GraphStats,
+    label: "Suspicious",
+    icon: AlertTriangle,
+    color: "text-red-400",
+    bg: "bg-[#0f172a]/90 border-[#1e293b]",
   },
   {
     key: "rings" as keyof GraphStats,
-    label: "Mule Rings",
+    label: "Fraud Clusters",
     icon: Network,
     color: "text-purple-400",
-    bg: "bg-purple-950/40 border-purple-900/50",
+    bg: "bg-[#0f172a]/90 border-[#1e293b]",
   },
 ];
 
 export default function NetworkStats({ stats, loading }: NetworkStatsProps) {
   return (
-    <div className="flex gap-3">
+    <div className="flex gap-2.5">
       {STAT_CARDS.map(({ key, label, icon: Icon, color, bg }) => (
         <div
           key={key}
-          className={`flex-1 px-3 py-2.5 rounded-xl border ${bg} flex items-center gap-3`}
+          className={`px-3 py-1.5 rounded-lg border ${bg} flex items-center gap-2.5 shadow-md`}
         >
-          <Icon className={`w-5 h-5 ${color} shrink-0`} />
-          <div>
-            <div className={`text-lg font-bold font-mono ${color}`}>
+          <Icon className={`w-3.5 h-3.5 ${color} shrink-0`} />
+          <div className="flex items-baseline gap-1.5">
+            <span className={`text-sm font-bold font-mono ${color}`}>
               {loading ? (
-                <span className="inline-block w-8 h-4 bg-gray-800 rounded animate-pulse" />
+                <span className="inline-block w-6 h-3 bg-[#1e293b] rounded animate-pulse" />
               ) : (
-                stats?.[key] ?? 0
+                (stats?.[key] ?? 0).toLocaleString()
               )}
-            </div>
-            <div className="text-[10px] text-gray-500 uppercase tracking-wider">{label}</div>
+            </span>
+            <span className="text-[10px] text-[#94a3b8] font-eyebrow uppercase">{label}</span>
           </div>
         </div>
       ))}

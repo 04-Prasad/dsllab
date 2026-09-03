@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   X, ExternalLink, AlertTriangle, Zap, Network,
   TrendingUp, TrendingDown, Shield, Activity,
+  ArrowDownRight, ArrowUpRight, Cpu
 } from "lucide-react";
 import type { EnrichedGraphNode } from "./types";
 
@@ -14,48 +15,29 @@ interface NodeDetailsDrawerProps {
 }
 
 const RISK_BADGE: Record<string, string> = {
-  CRITICAL: "bg-red-950 text-red-400 border-red-800",
-  HIGH:     "bg-orange-950 text-orange-400 border-orange-800",
-  MEDIUM:   "bg-yellow-950 text-yellow-400 border-yellow-800",
-  LOW:      "bg-emerald-950 text-emerald-400 border-emerald-800",
+  CRITICAL: "bg-red-950/80 text-red-400 border-red-800 shadow-[0_0_12px_rgba(239,68,68,0.3)]",
+  HIGH:     "bg-orange-950/80 text-orange-400 border-orange-800 shadow-[0_0_12px_rgba(249,115,22,0.3)]",
+  MEDIUM:   "bg-amber-950/80 text-amber-400 border-amber-800",
+  LOW:      "bg-emerald-950/80 text-emerald-400 border-emerald-800",
 };
 
 const ROLE_BADGE: Record<string, string> = {
-  HUB:                 "bg-indigo-950 text-indigo-300 border-indigo-800",
-  BRIDGE:              "bg-blue-950 text-blue-300 border-blue-800",
-  MULE:                "bg-orange-950 text-orange-300 border-orange-800",
-  RING_MEMBER:         "bg-purple-950 text-purple-300 border-purple-800",
-  SUSPICIOUS_NEIGHBOUR:"bg-yellow-950 text-yellow-300 border-yellow-800",
-  NORMAL:              "bg-gray-900 text-gray-400 border-gray-700",
+  HUB:                 "bg-indigo-950/80 text-indigo-300 border-indigo-800",
+  BRIDGE:              "bg-blue-950/80 text-blue-300 border-blue-800",
+  MULE:                "bg-orange-950/80 text-orange-300 border-orange-800",
+  RING_MEMBER:         "bg-purple-950/80 text-purple-300 border-purple-800",
+  SUSPICIOUS_NEIGHBOUR:"bg-amber-950/80 text-amber-300 border-amber-800",
+  NORMAL:              "bg-[#0f172a] text-[#94a3b8] border-[#1e293b]",
 };
 
-const ROLE_DESC: Record<string, string> = {
-  HUB:                 "Major transaction centre — high degree & PageRank",
-  BRIDGE:              "Connects otherwise separate clusters",
-  MULE:                "Rapid incoming → outgoing fund forwarding",
-  RING_MEMBER:         "Participates in a detected circular money flow",
-  SUSPICIOUS_NEIGHBOUR:"High concentration of risky counterparties",
-  NORMAL:              "Normal account behaviour",
-};
-
-const EWS_COLOURS: Record<string, string> = {
-  "EWS-001": "text-yellow-400",
-  "EWS-002": "text-red-400",
-  "EWS-003": "text-orange-400",
-  "EWS-004": "text-purple-400",
-  "EWS-005": "text-red-500",
-  "EWS-006": "text-amber-400",
-  "EWS-007": "text-pink-400",
-};
-
-const EWS_LABELS: Record<string, string> = {
-  "EWS-001": "Velocity Spike",
-  "EWS-002": "Fan-In Spike",
-  "EWS-003": "Fan-Out Spike",
-  "EWS-004": "Dormancy Burst",
-  "EWS-005": "Rapid Fund Movement",
-  "EWS-006": "High-Risk Neighbourhood",
-  "EWS-007": "Circular Flow",
+const EWS_BADGE_STYLE: Record<string, { label: string; style: string }> = {
+  "EWS-001": { label: "HIGH VELOCITY", style: "bg-amber-950/60 text-amber-300 border-amber-800/80" },
+  "EWS-002": { label: "FAN-IN", style: "bg-red-950/60 text-red-300 border-red-800/80" },
+  "EWS-003": { label: "FAN-OUT", style: "bg-orange-950/60 text-orange-300 border-orange-800/80" },
+  "EWS-004": { label: "DORMANCY BURST", style: "bg-purple-950/60 text-purple-300 border-purple-800/80" },
+  "EWS-005": { label: "RAPID OUTFLOW", style: "bg-red-950/80 text-red-400 border-red-700" },
+  "EWS-006": { label: "RISKY NEIGHBOUR", style: "bg-amber-950/60 text-amber-300 border-amber-800/80" },
+  "EWS-007": { label: "CIRCULAR FLOW", style: "bg-pink-950/60 text-pink-300 border-pink-800/80" },
 };
 
 function fmt(n: number): string {
@@ -72,183 +54,218 @@ export default function NodeDetailsDrawer({ node, onClose }: NodeDetailsDrawerPr
   if (!node) return null;
 
   const riskPct = Math.round(node.risk_score);
-  const riskBar =
-    node.risk_level === "CRITICAL" ? "bg-red-500" :
-    node.risk_level === "HIGH"     ? "bg-orange-500" :
-    node.risk_level === "MEDIUM"   ? "bg-yellow-500" : "bg-emerald-500";
+  const riskColorHex =
+    node.risk_level === "CRITICAL" ? "#ef4444" :
+    node.risk_level === "HIGH"     ? "#f97316" :
+    node.risk_level === "MEDIUM"   ? "#facc15" : "#22c55e";
 
   return (
     <aside
-      className="w-80 min-w-[18rem] bg-[#0d111e] border-l border-gray-800 flex flex-col overflow-y-auto"
+      className="w-88 min-w-[21rem] bg-[#020617]/95 backdrop-blur-xl border-l border-[#1e293b] flex flex-col overflow-y-auto text-[#f8fafc] z-20 shadow-2xl"
       style={{ height: "100%" }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 sticky top-0 bg-[#0d111e] z-10">
-        <div className="flex items-center gap-2">
-          <Network className="w-4 h-4 text-indigo-400" />
-          <span className="font-mono font-bold text-white text-base">{node.id}</span>
-          {node.alert_id && (
-            <span className="animate-pulse w-2 h-2 rounded-full bg-red-500" title="Active Alert" />
-          )}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-[#1e293b] sticky top-0 bg-[#020617]/95 backdrop-blur-md z-10">
+        <div className="flex items-center gap-2.5">
+          <div className="p-1.5 rounded-lg bg-[#38bdf8]/10 border border-[#38bdf8]/20">
+            <Network className="w-4 h-4 text-[#38bdf8]" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono font-bold text-white text-base tracking-tight">{node.id}</span>
+              {node.alert_id && (
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] font-mono text-[#64748b] uppercase tracking-wider">{node.account_type}</span>
+          </div>
         </div>
         <button
           onClick={onClose}
-          className="text-gray-500 hover:text-white transition-colors"
+          className="p-1 text-[#64748b] hover:text-white hover:bg-[#1e293b] rounded-lg transition-colors cursor-pointer"
           aria-label="Close panel"
         >
           <X className="w-4 h-4" />
         </button>
       </div>
 
-      <div className="flex-1 px-4 py-4 space-y-5 text-xs">
+      <div className="flex-1 px-5 py-5 space-y-6 text-xs">
 
-        {/* Risk Score */}
-        <section className="space-y-2">
+        {/* Risk Score Dial & Status Card */}
+        <section className="glass-card p-4 rounded-xl bg-[#0f172a]/70 border border-[#1e293b] space-y-3">
           <div className="flex items-center justify-between">
+            <span className="text-[10px] font-eyebrow text-[#94a3b8]">ACCOUNT RISK INDEX</span>
             <span
-              className={`px-2 py-0.5 rounded-full border font-bold text-[11px] uppercase ${RISK_BADGE[node.risk_level] ?? RISK_BADGE.LOW}`}
+              className={`px-2.5 py-0.5 rounded-full border text-[10px] font-bold tracking-wider uppercase ${RISK_BADGE[node.risk_level] ?? RISK_BADGE.LOW}`}
             >
               {node.risk_level}
             </span>
-            <span className="font-mono font-bold text-white text-sm">{riskPct} / 100</span>
           </div>
-          <div className="h-2 w-full bg-gray-800 rounded-full overflow-hidden">
+
+          <div className="flex items-end justify-between py-1">
+            <div>
+              <div className="text-3xl font-display font-bold text-white tracking-tight flex items-baseline gap-1">
+                {riskPct}
+                <span className="text-xs text-[#64748b] font-normal">/ 100</span>
+              </div>
+              <p className="text-[11px] text-[#94a3b8] mt-0.5">
+                {riskPct >= 80 ? "Severe fraud signature detected" : riskPct >= 60 ? "Elevated suspicious indicators" : "Low risk profile"}
+              </p>
+            </div>
+            {/* Circular Risk Gauge Indicator */}
+            <div className="relative w-12 h-12 flex items-center justify-center">
+              <svg className="w-12 h-12 transform -rotate-90">
+                <circle cx="24" cy="24" r="18" stroke="#1e293b" strokeWidth="4" fill="transparent" />
+                <circle
+                  cx="24" cy="24" r="18"
+                  stroke={riskColorHex}
+                  strokeWidth="4"
+                  fill="transparent"
+                  strokeDasharray="113"
+                  strokeDashoffset={113 - (113 * riskPct) / 100}
+                  strokeLinecap="round"
+                />
+              </svg>
+              <Shield className="w-4 h-4 absolute text-white opacity-80" />
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div className="h-1.5 w-full bg-[#1e293b] rounded-full overflow-hidden">
             <div
-              className={`h-full ${riskBar} transition-all duration-500`}
-              style={{ width: `${riskPct}%` }}
+              className="h-full transition-all duration-700 rounded-full"
+              style={{ width: `${riskPct}%`, backgroundColor: riskColorHex }}
             />
           </div>
-          <div className="text-gray-500">{node.account_type}</div>
         </section>
 
-        {/* Role */}
-        <section>
-          <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
-            Graph Role
-          </div>
-          <div
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded border font-semibold ${ROLE_BADGE[node.role] ?? ROLE_BADGE.NORMAL}`}
-          >
-            <Shield className="w-3 h-3" />
-            {node.role.replace("_", " ")}
-          </div>
-          <p className="text-gray-500 mt-1.5">{ROLE_DESC[node.role]}</p>
-          {node.ring_id && (
-            <div className="mt-1.5 flex items-center gap-1.5 text-purple-400 font-mono">
-              <span className="w-2 h-2 rounded-full bg-purple-500" />
-              {node.ring_id}
+        {/* Fraud Pattern Badges */}
+        {node.ews_codes.length > 0 && (
+          <section className="space-y-2">
+            <div className="text-[10px] font-eyebrow text-[#94a3b8] flex items-center gap-1.5">
+              <Zap className="w-3 h-3 text-amber-400" />
+              <span>DETECTED FRAUD PATTERNS</span>
             </div>
-          )}
+            <div className="flex flex-wrap gap-1.5">
+              {node.ews_codes.map((code) => {
+                const info = EWS_BADGE_STYLE[code] || { label: code, style: "bg-[#1e293b] text-[#94a3b8]" };
+                return (
+                  <span
+                    key={code}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold border tracking-wide uppercase ${info.style}`}
+                  >
+                    [ {info.label} ]
+                  </span>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Graph Role */}
+        <section className="p-3.5 bg-[#0f172a]/60 border border-[#1e293b] rounded-xl space-y-2">
+          <div className="text-[10px] font-eyebrow text-[#94a3b8]">GRAPHSAGE NODE CLASSIFICATION</div>
+          <div className="flex items-center justify-between">
+            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-bold uppercase ${ROLE_BADGE[node.role] ?? ROLE_BADGE.NORMAL}`}>
+              <Cpu className="w-3 h-3" />
+              {node.role.replace("_", " ")}
+            </div>
+            {node.ring_id && (
+              <span className="font-mono text-[11px] text-purple-400 font-bold px-2 py-0.5 bg-purple-950/60 border border-purple-800/60 rounded-md">
+                {node.ring_id}
+              </span>
+            )}
+          </div>
         </section>
 
-        {/* Active Alert */}
+        {/* Active Investigator Alert */}
         {node.alert_id && (
-          <section className="p-3 bg-red-950/40 border border-red-800/50 rounded-lg space-y-2">
-            <div className="flex items-center gap-1.5 text-red-400 font-semibold">
-              <AlertTriangle className="w-3.5 h-3.5" />
-              Active Alert
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-400 font-mono">{node.alert_id}</span>
-              <span
-                className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${RISK_BADGE[node.alert_severity ?? "HIGH"] ?? RISK_BADGE.HIGH}`}
-              >
+          <section className="p-3.5 bg-red-950/30 border border-red-800/40 rounded-xl space-y-2">
+            <div className="flex items-center justify-between text-red-400 font-semibold text-[11px]">
+              <span className="flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                Active Fraud Alert
+              </span>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${RISK_BADGE[node.alert_severity ?? "HIGH"]}`}>
                 {node.alert_severity}
               </span>
             </div>
-            <Link
-              href={`/alerts`}
-              className="mt-1 flex items-center gap-1 text-red-400 hover:text-red-300 font-medium"
-            >
-              Open Alert Queue <ExternalLink className="w-3 h-3" />
-            </Link>
-          </section>
-        )}
-
-        {/* EWS Signals */}
-        {node.ews_codes.length > 0 && (
-          <section>
-            <div className="flex items-center gap-1.5 text-amber-400 font-semibold mb-2">
-              <Zap className="w-3.5 h-3.5" />
-              EWS Signals ({node.ews_count})
-            </div>
-            <div className="space-y-1.5">
-              {node.ews_codes.map((code, i) => (
-                <div
-                  key={code}
-                  className="flex items-center gap-2 p-2 bg-gray-900 rounded border border-gray-800"
-                >
-                  <span className={`font-mono font-bold ${EWS_COLOURS[code] ?? "text-amber-400"}`}>
-                    {code}
-                  </span>
-                  <span className="text-gray-300">
-                    {node.ews_types[i] ?? EWS_LABELS[code] ?? code}
-                  </span>
-                </div>
-              ))}
+            <div className="flex items-center justify-between text-[#94a3b8] font-mono text-[11px]">
+              <span>ID: {node.alert_id}</span>
+              <Link
+                href="/alerts"
+                className="text-red-400 hover:text-red-300 hover:underline flex items-center gap-1 font-medium"
+              >
+                Triage Queue <ExternalLink className="w-3 h-3" />
+              </Link>
             </div>
           </section>
         )}
 
-        {/* Transaction Stats */}
-        <section>
-          <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
-            Transaction Stats
+        {/* Account Behaviour */}
+        <section className="space-y-2.5">
+          <div className="text-[10px] font-eyebrow text-[#94a3b8] flex items-center justify-between">
+            <span>ACCOUNT BEHAVIOUR</span>
+            <span>TRANSACTION FLOWS</span>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="bg-gray-900 rounded-lg p-2.5 border border-gray-800">
-              <div className="flex items-center gap-1 text-indigo-400 mb-1">
-                <TrendingDown className="w-3 h-3" />
-                <span className="text-[10px] uppercase tracking-wider">Incoming</span>
+
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="p-3 bg-[#0f172a]/60 border border-[#1e293b] rounded-xl space-y-1">
+              <div className="flex items-center justify-between text-[10px] text-[#94a3b8] font-eyebrow">
+                <span>INCOMING</span>
+                <ArrowDownRight className="w-3 h-3 text-[#38bdf8]" />
               </div>
-              <div className="font-mono font-bold text-white">{fmt(node.incoming_count)}</div>
-              <div className="text-gray-500">{fmtCurrency(node.incoming_total)}</div>
+              <div className="font-mono font-bold text-white text-base">{fmt(node.incoming_count)} tx</div>
+              <div className="text-[11px] font-mono text-[#38bdf8]">{fmtCurrency(node.incoming_total)}</div>
             </div>
-            <div className="bg-gray-900 rounded-lg p-2.5 border border-gray-800">
-              <div className="flex items-center gap-1 text-orange-400 mb-1">
-                <TrendingUp className="w-3 h-3" />
-                <span className="text-[10px] uppercase tracking-wider">Outgoing</span>
+
+            <div className="p-3 bg-[#0f172a]/60 border border-[#1e293b] rounded-xl space-y-1">
+              <div className="flex items-center justify-between text-[10px] text-[#94a3b8] font-eyebrow">
+                <span>OUTGOING</span>
+                <ArrowUpRight className="w-3 h-3 text-orange-400" />
               </div>
-              <div className="font-mono font-bold text-white">{fmt(node.outgoing_count)}</div>
-              <div className="text-gray-500">{fmtCurrency(node.outgoing_total)}</div>
+              <div className="font-mono font-bold text-white text-base">{fmt(node.outgoing_count)} tx</div>
+              <div className="text-[11px] font-mono text-orange-400">{fmtCurrency(node.outgoing_total)}</div>
             </div>
           </div>
         </section>
 
         {/* Graph Intelligence */}
-        <section>
-          <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
-            Graph Intelligence
-          </div>
-          <div className="space-y-1.5">
+        <section className="space-y-2">
+          <div className="text-[10px] font-eyebrow text-[#94a3b8]">NETWORK INTELLIGENCE & METRICS</div>
+          <div className="p-3.5 bg-[#0f172a]/60 border border-[#1e293b] rounded-xl space-y-2">
             {[
-              { label: "PageRank", value: node.pagerank.toFixed(5) },
-              { label: "In Degree", value: node.in_degree },
-              { label: "Out Degree", value: node.out_degree },
-              { label: "Betweenness", value: node.betweenness.toFixed(4) },
-              { label: "Risky Neighbours %", value: `${Math.round(node.risky_neighbor_ratio * 100)}%` },
+              { label: "PageRank Score", value: node.pagerank.toFixed(5) },
+              { label: "In Degree / Out Degree", value: `${node.in_degree} in / ${node.out_degree} out` },
+              { label: "Betweenness Centrality", value: node.betweenness.toFixed(4) },
+              { label: "Risky Counterparty Ratio", value: `${Math.round(node.risky_neighbor_ratio * 100)}%` },
             ].map(({ label, value }) => (
-              <div key={label} className="flex justify-between text-gray-400">
-                <span>{label}</span>
-                <span className="font-mono text-gray-200">{value}</span>
+              <div key={label} className="flex justify-between items-center text-[11px] border-b border-[#1e293b]/60 pb-1.5 last:border-0 last:pb-0">
+                <span className="text-[#94a3b8]">{label}</span>
+                <span className="font-mono font-semibold text-[#f8fafc]">{value}</span>
               </div>
             ))}
           </div>
         </section>
 
         {/* Actions */}
-        <section className="space-y-2 pt-1">
+        <section className="space-y-2 pt-2">
           <Link
             href={`/accounts/${node.id}`}
-            className="w-full flex items-center justify-center gap-1.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold transition-colors"
+            className="btn-void-violet w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-semibold text-white cursor-pointer"
           >
-            Investigate Account <ExternalLink className="w-3.5 h-3.5" />
+            <span>Investigate Account {node.id}</span>
+            <ExternalLink className="w-3.5 h-3.5" />
           </Link>
           <Link
             href={`/accounts/${node.id}`}
-            className="w-full flex items-center justify-center gap-1.5 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg font-medium transition-colors border border-gray-700"
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#0f172a] hover:bg-[#1e293b] text-[#f8fafc] rounded-lg text-xs font-medium border border-[#1e293b] transition-colors cursor-pointer"
           >
-            View Transactions <Activity className="w-3.5 h-3.5" />
+            <Activity className="w-3.5 h-3.5 text-[#38bdf8]" />
+            <span>View Full Transaction Ledger</span>
           </Link>
         </section>
       </div>
