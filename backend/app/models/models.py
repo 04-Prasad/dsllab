@@ -7,6 +7,32 @@ from sqlalchemy import Column, Integer, String, Float, DateTime, Text, ForeignKe
 from sqlalchemy.orm import relationship
 from backend.app.db.database import Base
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    full_name = Column(String(100), nullable=False)
+    email = Column(String(100), unique=True, index=True, nullable=False)
+    password_hash = Column(String(200), nullable=False)
+    role = Column(String(20), default="ANALYST") # ADMIN, INVESTIGATOR, ANALYST
+    is_active = Column(Integer, default=1)
+    
+    last_login = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    event_type = Column(String(100), nullable=False)
+    target_resource = Column(String(100), nullable=True)
+    status = Column(String(20), default="SUCCESS")
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    details = Column(JSON, nullable=True)
+    
+    user = relationship("User")
 class Account(Base):
     __tablename__ = "accounts"
 

@@ -3,6 +3,7 @@
 import React, { useRef, useCallback, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import * as THREE from "three";
+import type { EnrichedGraphNode, EnrichedGraphEdge } from "./types";
 
 const ForceGraph3D = dynamic(() => import("react-force-graph-3d"), {
   ssr: false,

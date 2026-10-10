@@ -8,3 +8,8 @@ networkx
 scikit-learn
 joblib
 httpx
+passlib[bcrypt]
+python-jose[cryptography]
+python-multipart
+email-validator
+bcrypt<4.0.0

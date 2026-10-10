@@ -5,11 +5,18 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 async function fetchJSON<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const token = typeof window !== 'undefined' ? sessionStorage.getItem("auth_token") : null;
+  const headers = {
+    "Content-Type": "application/json",
+    ...(options?.headers || {}),
+  };
+  
+  if (token) {
+    (headers as any)["Authorization"] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${API_BASE_URL}${endpoint}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(options?.headers || {}),
-    },
+    headers,
     ...options,
   });
 
