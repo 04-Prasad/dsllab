@@ -11,10 +11,13 @@ root_dir = Path(__file__).resolve().parent.parent.parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.db.database import engine, Base
-from backend.app.api import accounts, transactions, dashboard, alerts, ews, graph
+from backend.app.api import accounts, transactions, dashboard, alerts, ews, graph, auth, users
+from backend.app.api.deps import RoleChecker
+
+all_roles = RoleChecker(["ADMIN", "INVESTIGATOR", "ANALYST"])
 
 # Create database tables if they do not exist
 Base.metadata.create_all(bind=engine)
@@ -37,12 +40,14 @@ app.add_middleware(
 )
 
 # Register API Routers
-app.include_router(dashboard.router, prefix="/api/v1")
-app.include_router(accounts.router, prefix="/api/v1")
-app.include_router(transactions.router, prefix="/api/v1")
-app.include_router(alerts.router, prefix="/api/v1")
-app.include_router(ews.router, prefix="/api/v1")
-app.include_router(graph.router, prefix="/api/v1")
+app.include_router(dashboard.router, prefix="/api/v1", dependencies=[Depends(all_roles)])
+app.include_router(accounts.router, prefix="/api/v1", dependencies=[Depends(all_roles)])
+app.include_router(transactions.router, prefix="/api/v1", dependencies=[Depends(all_roles)])
+app.include_router(alerts.router, prefix="/api/v1") # Alerts has its own internal granular RoleCheckers
+app.include_router(ews.router, prefix="/api/v1", dependencies=[Depends(all_roles)])
+app.include_router(graph.router, prefix="/api/v1", dependencies=[Depends(all_roles)])
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(users.router, prefix="/api/users", tags=["users"])
 
 @app.get("/health")
 def health_check():
