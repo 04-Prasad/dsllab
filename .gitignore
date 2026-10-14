@@ -19,3 +19,9 @@ ml/artifacts/*.pt
 ml/artifacts/*.pkl
 .DS_Store
 Thumbs.db
+
+# Large dataset files and processed data
+data/LI-Small_Trans.csv
+data/LI-Small_accounts.csv
+data/processed/
+*.parquet
