@@ -25,3 +25,38 @@ data/LI-Small_Trans.csv
 data/LI-Small_accounts.csv
 data/processed/
 *.parquet
+# Node.js dependencies and build files
+node_modules/
+frontend/node_modules/
+.next/
+frontend/.next/
+dist/
+build/
+
+# Local databases
+graphguard.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Large and generated datasets
+data/*.csv
+data/**/*.csv
+data/*.parquet
+data/**/*.parquet
+data/generated/
+
+# Python-generated files
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Logs and caches
+*.log
+.pytest_cache/
