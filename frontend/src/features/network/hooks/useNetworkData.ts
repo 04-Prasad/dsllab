@@ -17,19 +17,23 @@ export function useNetworkData(initialParams: NetworkQueryParams = {}): UseNetwo
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastParams, setLastParams] = useState<NetworkQueryParams>(initialParams);
+  const lastParamsRef = useRef<NetworkQueryParams>(initialParams);
   const abortRef = useRef<AbortController | null>(null);
 
-  const load = useCallback(async (params: NetworkQueryParams = lastParams) => {
+  const load = useCallback(async (params?: NetworkQueryParams) => {
     // Cancel previous in-flight request
     abortRef.current?.abort();
     abortRef.current = new AbortController();
 
+    const activeParams = params ?? lastParamsRef.current;
+    lastParamsRef.current = activeParams;
+    setLastParams(activeParams);
+
     setLoading(true);
     setError(null);
-    setLastParams(params);
 
     try {
-      const result = await fetchNetworkGraph(params);
+      const result = await fetchNetworkGraph(activeParams);
       setData(result);
     } catch (err: any) {
       if (err?.name !== "AbortError") {
@@ -38,7 +42,7 @@ export function useNetworkData(initialParams: NetworkQueryParams = {}): UseNetwo
     } finally {
       setLoading(false);
     }
-  }, [lastParams]);
+  }, []);
 
   return { data, loading, error, load, lastParams };
 }

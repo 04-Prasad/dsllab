@@ -3,7 +3,8 @@
 import React, {
   useState, useCallback, useEffect, useRef, useMemo
 } from "react";
-import { AlertCircle, RefreshCw, Network } from "lucide-react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { AlertCircle, RefreshCw, Network, GitBranch, RotateCcw } from "lucide-react";
 
 import { useNetworkData } from "./hooks/useNetworkData";
 import { useGraphFilters }  from "./hooks/useGraphFilters";
@@ -12,7 +13,6 @@ import NetworkStats         from "./NetworkStats";
 import NodeDetailsDrawer    from "./NodeDetailsDrawer";
 import RiskLegend           from "./RiskLegend";
 import NetworkControls      from "./NetworkControls";
-import DetectiveTour        from "./DetectiveTour";
 import TransactionGraph3D   from "./TransactionGraph3D";
 import type { EnrichedGraphNode } from "./types";
 
@@ -35,6 +35,10 @@ function useContainerSize(ref: React.RefObject<HTMLDivElement>) {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function NetworkPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const urlAccountId = searchParams.get("account_id");
+
   const { data, loading, error, load } = useNetworkData();
   const {
     filters, quickFilter,
@@ -46,16 +50,37 @@ export default function NetworkPage() {
   const [focusNodeId,  setFocusNodeId]  = useState<string | null>(null);
   const [searchQuery,  setSearchQuery]  = useState<string>("");
   const [searchError,  setSearchError]  = useState<string | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const graphContainerRef = useRef<HTMLDivElement>(null);
   const fgRef             = useRef<any>(null);
   const { width, height } = useContainerSize(graphContainerRef);
 
-  // ── Initial load on mount ─────────────────────────────────────────────────
+  // ── Initial load on mount or when account_id in URL changes ───────────────
   useEffect(() => {
-    load({ limit: 200 });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (urlAccountId) {
+      setSearchQuery(urlAccountId);
+      load({ account_id: urlAccountId, incoming: 10, outgoing: 10 });
+      setFocusNodeId(urlAccountId);
+    } else {
+      load({ incoming: 10, outgoing: 10 });
+    }
+  }, [urlAccountId, load]);
+
+  // Every returned graph has one investigation target. Centre it once the
+  // renderer has received its deliberately small, semantic subgraph, and select it.
+  useEffect(() => {
+    const target = data?.stats.selected_account;
+    if (!target) return;
+    const timer = setTimeout(() => {
+      setFocusNodeId(target);
+      const centerNode = data?.nodes.find((node) => node.id === target);
+      if (centerNode) {
+        setSelectedNode(centerNode);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [data]);
 
   // ── Compute filtered graph ────────────────────────────────────────────────
   const { nodes: filteredNodes, edges: filteredEdges } = useMemo(() => {
@@ -69,26 +94,19 @@ export default function NetworkPage() {
       setSearchError(null);
       setSearchQuery(accountId);
 
-      // Check if node is already loaded
-      const found = data?.nodes.find((n) => n.id === accountId);
-      if (found) {
-        setSelectedNode(found);
-        setFocusNodeId(accountId);
-        return;
-      }
-
-      // Reload centred on this account
+      // Always reload: clicking/searching an account means it becomes the
+      // target at the centre of a new, ranked investigation subgraph.
       try {
-        await load({ account_id: accountId, limit: 150 });
-        // focusNodeId will be set after load completes — use a small delay
-        setTimeout(() => {
-          setFocusNodeId(accountId);
-        }, 600);
+        setIsExpanded(false);
+        setSelectedNode(null);
+        await load({ account_id: accountId, incoming: 10, outgoing: 10 });
+        setFocusNodeId(accountId);
+        router.replace(`/graph?account_id=${accountId}`);
       } catch {
         setSearchError(`Account ${accountId} was not found.`);
       }
     },
-    [data, load]
+    [load, router]
   );
 
   // ── Camera controls ───────────────────────────────────────────────────────
@@ -109,9 +127,9 @@ export default function NetworkPage() {
       fgRef.current.cameraPosition({ x: 0, y: 0, z: 400 }, { x: 0, y: 0, z: 0 }, 800);
     }
     setSelectedNode(null);
-    setFocusNodeId(null);
+    setFocusNodeId(data?.stats.selected_account ?? null);
     resetFilters();
-  }, [resetFilters]);
+  }, [data?.stats.selected_account, resetFilters]);
 
   const handleFullscreen = useCallback(() => {
     const el = graphContainerRef.current;
@@ -124,16 +142,29 @@ export default function NetworkPage() {
   }, []);
 
   const handleReload = useCallback(() => {
-    load({ limit: 200 });
-  }, [load]);
+    load({
+      account_id: data?.stats.selected_account ?? undefined,
+      incoming: 10,
+      outgoing: 10,
+    });
+    setIsExpanded(false);
+  }, [data?.stats.selected_account, load]);
 
-  // ── Tour integration ──────────────────────────────────────────────────────
-  const handleTourFocus = useCallback(
-    (accountId: string) => {
-      handleSearch(accountId);
-    },
-    [handleSearch]
-  );
+  const handleExpandNetwork = useCallback(() => {
+    const accountId = data?.stats.selected_account;
+    if (!accountId) return;
+    setIsExpanded(true);
+    load({ account_id: accountId, incoming: 20, outgoing: 20, expand: true });
+  }, [data?.stats.selected_account, load]);
+
+  const handleResetNetwork = useCallback(() => {
+    const accountId = data?.stats.selected_account;
+    setIsExpanded(false);
+    resetFilters();
+    load({ account_id: accountId ?? undefined, incoming: 10, outgoing: 10 });
+  }, [data?.stats.selected_account, load, resetFilters]);
+
+
 
   // ── Node interaction ──────────────────────────────────────────────────────
   const handleNodeClick = useCallback((node: EnrichedGraphNode) => {
@@ -171,12 +202,26 @@ export default function NetworkPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {data?.stats.selected_account && (
+            <div className="flex items-center gap-2 bg-[#0f172a] border border-[#38bdf8]/30 px-3 py-1.5 rounded-lg text-xs shadow-[0_0_10px_rgba(56,189,248,0.1)]">
+              <span className="text-[10px] text-[#94a3b8] font-mono tracking-wider uppercase">FOCUSED TARGET:</span>
+              <span className="font-mono font-bold text-amber-300">{data.stats.selected_account}</span>
+              <button
+                onClick={() => {
+                  router.replace("/graph");
+                  load({ incoming: 10, outgoing: 10 });
+                }}
+                className="text-[10px] text-[#38bdf8] hover:text-white hover:underline ml-1.5 cursor-pointer font-medium"
+                title="Return to global view"
+              >
+                Reset
+              </button>
+            </div>
+          )}
+
           {/* Stats */}
           <NetworkStats stats={data?.stats ?? null} loading={loading} />
-
-          {/* Detective Tour */}
-          <DetectiveTour onFocusAccount={handleTourFocus} onClose={handleResetView} />
         </div>
       </div>
 
@@ -265,6 +310,45 @@ export default function NetworkPage() {
               />
             )}
 
+            {/* Filtered investigation context: makes it explicit that this is
+                not a raw dump of the complete analytical transaction graph. */}
+            {data?.stats.selected_account && (
+              <div className="absolute top-5 left-5 z-20 w-[245px] rounded-xl border border-[#1e293b] bg-[#0f172a]/92 p-3.5 shadow-2xl backdrop-blur-md">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-eyebrow tracking-wider text-[#94a3b8]">INVESTIGATION VIEW</p>
+                    <p className="mt-1 font-mono text-sm font-bold text-white">{data.stats.selected_account}</p>
+                  </div>
+                  <span className="rounded-md border border-red-800/70 bg-red-950/50 px-2 py-1 text-[9px] font-bold tracking-wider text-red-300">TARGET</span>
+                </div>
+                <p className="mt-2 text-[11px] leading-4 text-[#94a3b8]">
+                  Showing {data.stats.visible_edges ?? data.stats.total_edges} ranked relationships of {data.stats.total_connected ?? 0} connected accounts.
+                </p>
+                <div className="mt-3 grid grid-cols-3 gap-1.5 text-center text-[10px]">
+                  <div className="rounded-md bg-[#020617]/70 py-1.5 text-blue-300"><b className="block text-xs">{data.stats.incoming_count ?? 0}</b>IN</div>
+                  <div className="rounded-md bg-[#020617]/70 py-1.5 text-orange-300"><b className="block text-xs">{data.stats.outgoing_count ?? 0}</b>OUT</div>
+                  <div className="rounded-md bg-[#020617]/70 py-1.5 text-yellow-300"><b className="block text-xs">{data.stats.suspicious_count ?? 0}</b>RISK</div>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={handleExpandNetwork}
+                    disabled={isExpanded || loading}
+                    className="flex flex-1 items-center justify-center gap-1 rounded-md border border-[#38bdf8]/40 bg-[#38bdf8]/10 px-2 py-1.5 text-[10px] font-bold text-[#7dd3fc] transition-colors hover:bg-[#38bdf8]/20 disabled:cursor-default disabled:opacity-45"
+                  >
+                    <GitBranch className="h-3 w-3" /> {isExpanded ? "EXPANDED" : "EXPAND"}
+                  </button>
+                  <button
+                    onClick={handleResetNetwork}
+                    disabled={loading}
+                    title="Reset network"
+                    className="flex items-center justify-center rounded-md border border-[#334155] bg-[#020617]/70 px-2 py-1.5 text-[#94a3b8] transition-colors hover:text-white disabled:opacity-45"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Hover tooltip card */}
             {hoveredNode && hoveredNode.id !== selectedNode?.id && (
               <div className="absolute top-6 left-1/2 -translate-x-1/2 pointer-events-none z-30 animate-fade-in">
@@ -294,6 +378,12 @@ export default function NetworkPage() {
 
                     <div className="text-[#94a3b8]">Fan-In / Fan-Out</div>
                     <div className="font-mono text-right text-[#f8fafc]">{hoveredNode.incoming_count} in / {hoveredNode.outgoing_count} out</div>
+
+                    <div className="text-[#94a3b8]">Total Received</div>
+                    <div className="font-mono text-right text-blue-300">${hoveredNode.incoming_total.toLocaleString()}</div>
+
+                    <div className="text-[#94a3b8]">Total Sent</div>
+                    <div className="font-mono text-right text-orange-300">${hoveredNode.outgoing_total.toLocaleString()}</div>
 
                     <div className="text-[#94a3b8]">GraphSAGE</div>
                     <div className="font-mono font-semibold text-right text-[#a855f7]">{hoveredNode.role}</div>

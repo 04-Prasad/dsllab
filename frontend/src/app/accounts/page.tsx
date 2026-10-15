@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   Filter,
   ChevronDown,
+  Network,
 } from "lucide-react";
 
 const RISK_LEVELS = ["", "CRITICAL", "HIGH", "MEDIUM", "LOW"];
@@ -99,7 +100,7 @@ export default function AccountsPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by Account ID (e.g. A102)…"
+            placeholder="Search by Account ID…"
             className="w-full pl-9 pr-4 py-2 bg-[rgba(199,211,234,0.06)] border border-[rgba(186,215,247,0.12)] rounded-md text-xs text-white placeholder-[#9da7ba] focus:outline-none focus:border-[rgba(186,215,247,0.3)] transition-colors"
           />
           <button
@@ -213,9 +214,11 @@ export default function AccountsPage() {
                     <td className="p-3.5 text-right flex items-center justify-end gap-2">
                       <Link
                         href={`/graph?account_id=${acc.account_id}`}
-                        className="btn-pill-ghost text-[11px] px-3 py-1"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#38bdf8]/10 hover:bg-[#38bdf8]/20 text-[#38bdf8] border border-[#38bdf8]/30 hover:border-[#38bdf8]/60 transition-all shadow-[0_0_8px_rgba(56,189,248,0.15)] group"
+                        title={`Explore 3D transaction network for ${acc.account_id}`}
                       >
-                        Graph
+                        <Network className="w-3.5 h-3.5 text-[#38bdf8] group-hover:scale-110 transition-transform" />
+                        <span>3D Graph</span>
                       </Link>
                       <Link
                         href={`/accounts/${acc.account_id}`}

@@ -263,4 +263,21 @@ def setup_demo():
 
 
 if __name__ == "__main__":
-    setup_demo()
+    import argparse
+    from config.settings import settings
+
+    parser = argparse.ArgumentParser(description="GraphGuard Setup Script")
+    parser.add_argument(
+        "--source",
+        choices=["ibm", "synthetic"],
+        default=settings.DATA_SOURCE,
+        help="Data source to seed: 'ibm' (default) or 'synthetic'",
+    )
+    parser.add_argument("--sample-rows", type=int, default=50000, help="Number of IBM transactions to sample")
+    args = parser.parse_args()
+
+    if args.source == "ibm":
+        from scripts.setup_ibm import setup_ibm_pipeline
+        setup_ibm_pipeline(sample_rows=args.sample_rows)
+    else:
+        setup_demo()

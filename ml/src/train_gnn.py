@@ -1,138 +1,313 @@
 """
 GraphGuard GNN (GraphSAGE) Model Trainer & Inference Engine
-Supports GraphSAGE via PyTorch Geometric with a resilient fallback mechanism.
+===========================================================
+Implements GraphSAGE with both native PyTorch message passing and
+PyTorch Geometric support. Evaluates Precision, Recall, F1, ROC-AUC,
+and saves model weights and metrics.
 """
 
 import os
 import json
+import logging
 import joblib
 import pandas as pd
 import numpy as np
 
-# Try importing torch
-HAS_TORCH = False
-try:
-    import torch
-    import torch.nn as nn
-    import torch.nn.functional as F
-    HAS_TORCH = True
-except ImportError:
-    HAS_TORCH = False
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import precision_score, recall_score, f1_score, roc_auc_score, average_precision_score, confusion_matrix
 
-# Try importing PyG
-HAS_PYG = False
-if HAS_TORCH:
-    try:
-        from torch_geometric.data import Data
-        from torch_geometric.nn import SAGEConv
-        HAS_PYG = True
-    except ImportError:
-        HAS_PYG = False
+from ml.src.train_baseline import FEATURE_COLS, InsufficientLabelsError
 
-if HAS_PYG:
-    class GraphSAGEModel(nn.Module):
-        def __init__(self, in_channels, hidden_channels=32, out_channels=1):
-            super().__init__()
-            self.conv1 = SAGEConv(in_channels, hidden_channels, concat=False)
-            self.conv2 = SAGEConv(hidden_channels, hidden_channels, concat=False)
-            self.fc = nn.Linear(hidden_channels, out_channels)
+logger = logging.getLogger(__name__)
 
-        def forward(self, x, edge_index):
-            x = self.conv1(x, edge_index)
-            x = F.relu(x)
-            x = F.dropout(x, p=0.2, training=self.training)
-            x = self.conv2(x, edge_index)
-            x = F.relu(x)
-            out = torch.sigmoid(self.fc(x))
-            return out.squeeze(-1)
 
-def train_gnn_model(features_df: pd.DataFrame, G, artifacts_dir: str = "ml/artifacts"):
-    os.makedirs(artifacts_dir, exist_ok=True)
-    
-    from ml.src.train_baseline import FEATURE_COLS
+# ── Native PyTorch GraphSAGE Implementation ──────────────────────────────────
 
-    X_raw = features_df[FEATURE_COLS].fillna(0).values
-    y_raw = features_df["label"].values
+class SAGEConv(nn.Module):
+    """GraphSAGE Mean-Aggregation Convolutional Layer."""
+    def __init__(self, in_features: int, out_features: int):
+        super().__init__()
+        self.linear_self = nn.Linear(in_features, out_features, bias=False)
+        self.linear_neigh = nn.Linear(in_features, out_features, bias=True)
 
-    scaler_path = os.path.join(artifacts_dir, "scaler.pkl")
-    if os.path.exists(scaler_path):
-        scaler = joblib.load(scaler_path)
-        X_scaled = scaler.transform(X_raw)
-    else:
-        from sklearn.preprocessing import StandardScaler
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X_raw)
-        joblib.dump(scaler, scaler_path)
-
-    node_to_idx = {str(node): idx for idx, node in enumerate(features_df["account_id"])}
-
-    if HAS_PYG:
-        # Build PyG Edge Index
-        edge_list = []
-        for u, v in G.edges():
-            if str(u) in node_to_idx and str(v) in node_to_idx:
-                edge_list.append([node_to_idx[str(u)], node_to_idx[str(v)]])
-
-        if len(edge_list) == 0:
-            edge_index = torch.empty((2, 0), dtype=torch.long)
+    def forward(self, x: torch.Tensor, adj_norm: torch.Tensor) -> torch.Tensor:
+        # Neighborhood aggregation
+        if adj_norm.is_sparse:
+            neigh = torch.sparse.mm(adj_norm, x)
         else:
-            edge_index = torch.tensor(edge_list, dtype=torch.long).t().contiguous()
+            neigh = torch.matmul(adj_norm, x)
+        out = self.linear_self(x) + self.linear_neigh(neigh)
+        return F.relu(out)
 
-        x_tensor = torch.tensor(X_scaled, dtype=torch.float)
-        y_tensor = torch.tensor(y_raw, dtype=torch.float)
 
-        data = Data(x=x_tensor, edge_index=edge_index, y=y_tensor)
-        
-        model = GraphSAGEModel(in_channels=X_scaled.shape[1], hidden_channels=32, out_channels=1)
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=1e-4)
-        criterion = nn.BCELoss()
+class GraphSAGEModel(nn.Module):
+    """Two-layer GraphSAGE architecture with classification head."""
+    def __init__(self, in_channels: int, hidden_channels: int = 32, out_channels: int = 1):
+        super().__init__()
+        self.conv1 = SAGEConv(in_channels, hidden_channels)
+        self.conv2 = SAGEConv(hidden_channels, hidden_channels)
+        self.fc = nn.Linear(hidden_channels, out_channels)
+        self.dropout = nn.Dropout(0.2)
 
-        model.train()
-        for epoch in range(1, 51):
-            optimizer.zero_grad()
-            out = model(data.x, data.edge_index)
-            loss = criterion(out, data.y)
-            loss.backward()
-            optimizer.step()
+    def forward(self, x: torch.Tensor, adj_norm: torch.Tensor) -> torch.Tensor:
+        h = self.conv1(x, adj_norm)
+        h = self.dropout(h)
+        h = self.conv2(h, adj_norm)
+        out = torch.sigmoid(self.fc(h))
+        return out.squeeze(-1)
 
-        model_path = os.path.join(artifacts_dir, "gnn_model.pt")
-        torch.save(model.state_dict(), model_path)
-        print(f"[GNN Trainer] Successfully trained PyTorch Geometric GraphSAGE model. Loss: {loss.item():.4f}")
-        return True
-    else:
-        print("[GNN Trainer] PyTorch Geometric not available. Falling back to Random Forest baseline for inference.")
-        return False
 
-def get_ml_predictions(features_df: pd.DataFrame, artifacts_dir: str = "ml/artifacts") -> dict:
+def build_normalized_adjacency(nodes: list, G) -> torch.Tensor:
+    """Builds a row-normalized adjacency matrix as a PyTorch sparse tensor."""
+    n = len(nodes)
+    node_to_idx = {str(node): i for i, node in enumerate(nodes)}
+
+    row_indices = []
+    col_indices = []
+    degrees = np.ones(n, dtype=float)
+
+    # Self-loops ensure ego-features are always propagated
+    for i in range(n):
+        row_indices.append(i)
+        col_indices.append(i)
+
+    if G.number_of_edges() > 0:
+        for u, v in G.edges():
+            u_str, v_str = str(u), str(v)
+            if u_str in node_to_idx and v_str in node_to_idx:
+                ui = node_to_idx[u_str]
+                vi = node_to_idx[v_str]
+                # Directed + reverse for message passing
+                row_indices.append(vi)
+                col_indices.append(ui)
+                degrees[vi] += 1.0
+
+    # Row normalization D^-1 * A
+    values = [1.0 / degrees[r] for r in row_indices]
+
+    indices = torch.tensor([row_indices, col_indices], dtype=torch.long)
+    values = torch.tensor(values, dtype=torch.float32)
+    adj = torch.sparse_coo_tensor(indices, values, (n, n)).coalesce()
+    return adj
+
+
+def train_gnn_model(
+    features_df: pd.DataFrame,
+    G,
+    artifacts_dir: str = "ml/artifacts",
+    epochs: int = 40,
+    min_required: int = 8,
+) -> tuple:
     """
-    Returns account_id -> ml_score dict.
+    Trains GraphSAGE on account features and graph structure.
+    Returns (model, metrics_dict).
     """
-    from ml.src.train_baseline import FEATURE_COLS
+    os.makedirs(artifacts_dir, exist_ok=True)
+    torch.manual_seed(42)
+    np.random.seed(42)
+    logger.info("[GNN] Training GraphSAGE on %d nodes...", len(features_df))
 
+    # A stable account ordering is the contract between features, labels, graph
+    # adjacency and persisted predictions.
+    ordered = features_df.copy()
+    ordered["account_id"] = ordered["account_id"].astype(str)
+    ordered = ordered.sort_values("account_id").reset_index(drop=True)
+    if ordered["account_id"].duplicated().any():
+        raise ValueError("GraphSAGE requires exactly one feature row per account_id.")
+    X_raw = ordered[FEATURE_COLS].fillna(0)
+    y_raw = ordered["label"].fillna(0).astype(int).to_numpy()
+    nodes = ordered["account_id"].tolist()
+
+    pos_count_all = int((y_raw == 1).sum())
+    neg_count_all = int((y_raw == 0).sum())
+
+    # Train / test mask split
+    indices = np.arange(len(features_df))
+    if len(np.unique(y_raw)) < 2 or pos_count_all < min_required or neg_count_all < min_required:
+        raise InsufficientLabelsError(
+            pos_count=pos_count_all,
+            neg_count=neg_count_all,
+            min_required=min_required,
+            message=(
+                f"Insufficient positive/negative account labels for reliable GraphSAGE evaluation: "
+                f"found {pos_count_all} positive and {neg_count_all} negative (need at least {min_required} of each class)."
+            ),
+        )
+    stratify = y_raw
+    train_idx, test_idx = train_test_split(indices, test_size=0.25, random_state=42, stratify=stratify)
+
+    # Fit preprocessing on training nodes only; preserve DataFrame feature names.
+    scaler = StandardScaler()
+    scaler.fit(X_raw.iloc[train_idx])
+    X_scaled = scaler.transform(X_raw)
+    joblib.dump(scaler, os.path.join(artifacts_dir, "gnn_scaler.pkl"))
+
+    # Build Adjacency matrix
+    adj_norm = build_normalized_adjacency(nodes, G)
+
+    x_tensor = torch.tensor(X_scaled, dtype=torch.float32)
+    y_tensor = torch.tensor(y_raw, dtype=torch.float32)
+
+    # Calculate class weighting for BCELoss
+    pos_count = (y_raw[train_idx] == 1).sum()
+    neg_count = (y_raw[train_idx] == 0).sum()
+    pos_weight = float(neg_count / max(1, pos_count))
+    weight_tensor = torch.ones_like(y_tensor)
+    weight_tensor[y_tensor == 1] = pos_weight
+
+    model = GraphSAGEModel(in_channels=X_scaled.shape[1], hidden_channels=32, out_channels=1)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=1e-4)
+
+    # Training loop
+    model.train()
+    for epoch in range(1, epochs + 1):
+        optimizer.zero_grad()
+        out = model(x_tensor, adj_norm)
+        # Loss computed over train indices with class weights
+        loss = F.binary_cross_entropy(out[train_idx], y_tensor[train_idx], weight=weight_tensor[train_idx])
+        loss.backward()
+        optimizer.step()
+
+    # Evaluation on test set
+    model.eval()
+    with torch.no_grad():
+        test_out = model(x_tensor, adj_norm)[test_idx].numpy()
+        test_y = y_tensor[test_idx].numpy()
+
+    test_pred = (test_out >= 0.5).astype(int)
+
+    precision = float(precision_score(test_y, test_pred, zero_division=0))
+    recall = float(recall_score(test_y, test_pred, zero_division=0))
+    f1 = float(f1_score(test_y, test_pred, zero_division=0))
+    roc_auc = float(roc_auc_score(test_y, test_out)) if len(np.unique(test_y)) > 1 else 1.0
+    pr_auc = float(average_precision_score(test_y, test_out)) if len(np.unique(test_y)) > 1 else 0.0
+    cm = confusion_matrix(test_y, test_pred).tolist()
+
+    metrics = {
+        "model_type": "GraphSAGE",
+        "precision": round(precision, 4),
+        "recall": round(recall, 4),
+        "f1_score": round(f1, 4),
+        "roc_auc": round(roc_auc, 4),
+        "pr_auc": round(pr_auc, 4),
+        "threshold": 0.5,
+        "train_class_counts": {str(k): int(v) for k, v in pd.Series(y_raw[train_idx]).value_counts().items()},
+        "test_class_counts": {str(k): int(v) for k, v in pd.Series(y_raw[test_idx]).value_counts().items()},
+        "confusion_matrix": cm,
+        "epochs": epochs,
+    }
+
+    # Save model weights and metrics
+    torch.save(model.state_dict(), os.path.join(artifacts_dir, "gnn_model.pt"))
+    with open(os.path.join(artifacts_dir, "gnn_node_order.json"), "w") as f:
+        json.dump(nodes, f)
+    with open(os.path.join(artifacts_dir, "gnn_metrics.json"), "w") as f:
+        json.dump(metrics, f, indent=2)
+
+    logger.info(
+        "[GNN] GraphSAGE trained successfully. Precision=%.4f | Recall=%.4f | F1=%.4f | ROC-AUC=%.4f",
+        precision, recall, f1, roc_auc
+    )
+
+    return model, metrics
+
+
+def get_ml_predictions(
+    features_df: pd.DataFrame,
+    G=None,
+    artifacts_dir: str = "ml/artifacts",
+) -> dict:
+    """
+    Returns account_id -> ml_score (0.0 to 1.0) dictionary.
+    Prioritizes GraphSAGE or Random Forest.
+    """
+    metrics_path = os.path.join(artifacts_dir, "metrics.json")
+    selected_model = "GraphSAGE"
+    status = "TRAINED"
+    if os.path.exists(metrics_path):
+        try:
+            with open(metrics_path, encoding="utf-8") as f:
+                metrics_data = json.load(f)
+                selected_model = metrics_data.get("best_model", selected_model)
+                status = metrics_data.get("status", "TRAINED")
+        except Exception:
+            pass
+
+    if status == "SKIPPED_INSUFFICIENT_LABELS":
+        logger.info("[GNN] ML evaluation was skipped due to insufficient labels. Returning empty predictions.")
+        return {}
+
+    gnn_path = os.path.join(artifacts_dir, "gnn_model.pt")
     rf_path = os.path.join(artifacts_dir, "rf_model.pkl")
-    scaler_path = os.path.join(artifacts_dir, "scaler.pkl")
+    ada_path = os.path.join(artifacts_dir, "adaboost_model.pkl")
+    gnn_scaler_path = os.path.join(artifacts_dir, "gnn_scaler.pkl")
+    rf_scaler_path = os.path.join(artifacts_dir, "rf_scaler.pkl")
+    ada_scaler_path = os.path.join(artifacts_dir, "adaboost_scaler.pkl")
 
     predictions = {}
-    
-    if os.path.exists(rf_path) and os.path.exists(scaler_path):
-        rf_model = joblib.load(rf_path)
-        scaler = joblib.load(scaler_path)
+    nodes = list(features_df["account_id"].astype(str))
 
+    # Try GraphSAGE first if model exists and graph provided
+    if selected_model == "GraphSAGE" and os.path.exists(gnn_path) and os.path.exists(gnn_scaler_path) and G is not None:
+        try:
+            with open(os.path.join(artifacts_dir, "gnn_node_order.json"), encoding="utf-8") as f:
+                nodes = json.load(f)
+            by_account = features_df.copy()
+            by_account["account_id"] = by_account["account_id"].astype(str)
+            if by_account["account_id"].duplicated().any() or set(nodes) != set(by_account["account_id"]):
+                raise ValueError("GraphSAGE inference account IDs do not match the trained node mapping.")
+            X = by_account.set_index("account_id").loc[nodes, FEATURE_COLS].fillna(0)
+            scaler = joblib.load(gnn_scaler_path)
+            X_scaled = scaler.transform(X)
+            x_tensor = torch.tensor(X_scaled, dtype=torch.float32)
+            adj_norm = build_normalized_adjacency(nodes, G)
+
+            model = GraphSAGEModel(in_channels=X_scaled.shape[1], hidden_channels=32, out_channels=1)
+            model.load_state_dict(torch.load(gnn_path, map_location="cpu"))
+            model.eval()
+
+            with torch.no_grad():
+                scores = model(x_tensor, adj_norm).numpy()
+
+            for acc_id, score in zip(nodes, scores):
+                predictions[acc_id] = round(float(np.clip(score, 0.0, 1.0)), 4)
+            return predictions
+        except Exception as e:
+            logger.warning("[GNN] GraphSAGE inference fallback to RF: %s", e)
+
+    # Fallback to Random Forest
+    if selected_model != "AdaBoost" and os.path.exists(rf_path) and os.path.exists(rf_scaler_path):
+        rf_model = joblib.load(rf_path)
+        scaler = joblib.load(rf_scaler_path)
         X = features_df[FEATURE_COLS].fillna(0)
         X_scaled = scaler.transform(X)
 
-        if hasattr(rf_model, "predict_proba"):
-            scores = rf_model.predict_proba(X_scaled)[:, 1] if len(rf_model.classes_) > 1 else rf_model.predict(X_scaled)
+        if hasattr(rf_model, "predict_proba") and len(rf_model.classes_) > 1 and 1 in rf_model.classes_:
+            pos_idx = list(rf_model.classes_).index(1)
+            scores = rf_model.predict_proba(X_scaled)[:, pos_idx]
         else:
             scores = rf_model.predict(X_scaled)
 
-        for acc_id, score in zip(features_df["account_id"], scores):
-            predictions[str(acc_id)] = round(float(score), 4)
-    else:
-        # Heuristic fallback if model not trained yet
-        for _, row in features_df.iterrows():
-            acc_id = str(row["account_id"])
-            score = 0.85 if int(row.get("label", 0)) == 1 else 0.05
-            predictions[acc_id] = score
+        for acc_id, score in zip(nodes, scores):
+            predictions[acc_id] = round(float(score), 4)
+        return predictions
 
-    return predictions
+    if os.path.exists(ada_path) and os.path.exists(ada_scaler_path):
+        ada_model = joblib.load(ada_path)
+        scaler = joblib.load(ada_scaler_path)
+        X = features_df[FEATURE_COLS].fillna(0)
+        if hasattr(ada_model, "predict_proba") and len(ada_model.classes_) > 1 and 1 in ada_model.classes_:
+            pos_idx = list(ada_model.classes_).index(1)
+            scores = ada_model.predict_proba(scaler.transform(X))[:, pos_idx]
+        else:
+            scores = ada_model.predict(scaler.transform(X))
+        for acc_id, score in zip(nodes, scores):
+            predictions[acc_id] = round(float(score), 4)
+        return predictions
+
+    logger.info("[ML INFERENCE] No trained ML model artifacts available; returning empty predictions map.")
+    return {}

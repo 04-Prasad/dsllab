@@ -1,0 +1,52 @@
+{
+  "status": "TRAINED",
+  "model_type": "AdaBoostClassifier",
+  "precision": 0.0,
+  "recall": 0.0,
+  "f1_score": 0.0,
+  "roc_auc": 0.9965,
+  "pr_auc": 0.03,
+  "threshold": 0.5,
+  "train_class_counts": {
+    "0": 121830,
+    "1": 9
+  },
+  "test_class_counts": {
+    "0": 40610,
+    "1": 3
+  },
+  "confusion_matrix": [
+    [
+      40606,
+      4
+    ],
+    [
+      3,
+      0
+    ]
+  ],
+  "feature_cols": [
+    "total_transactions",
+    "incoming_transaction_count",
+    "outgoing_transaction_count",
+    "incoming_amount_total",
+    "outgoing_amount_total",
+    "average_incoming_amount",
+    "average_outgoing_amount",
+    "max_transaction_amount",
+    "unique_senders",
+    "unique_receivers",
+    "transaction_velocity_1h",
+    "transaction_velocity_24h",
+    "dormancy_days",
+    "rapid_movement_ratio",
+    "account_age_days",
+    "in_degree",
+    "out_degree",
+    "degree",
+    "pagerank",
+    "risky_neighbor_count",
+    "risky_neighbor_ratio",
+    "circular_flow_indicator"
+  ]
+}

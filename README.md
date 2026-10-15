@@ -1,165 +1,231 @@
-<<<<<<< HEAD
-# GraphGuard — Graph Intelligence & Fraud Analytics System
+# GraphGuard — Graph Intelligence & AML Financial Crime Detection
 
-GraphGuard is an intelligent transaction-monitoring and graph-based fraud-detection system. Traditional fraud detection systems analyze individual financial transactions in isolation. GraphGuard instead constructs a directed network graph where **Accounts are Nodes** and **Transactions are Edges**, uncovering complex financial crime structures such as **fan-in mule networks**, **fan-out schemes**, **dormancy bursts**, **rapid fund movement**, and **circular money flows**.
+GraphGuard is an intelligent transaction monitoring and graph-based anti-money laundering (AML) detection platform. Designed for final-year engineering research and production-grade monitoring, GraphGuard moves beyond isolated single-transaction rules by representing financial transactions as a directed graph where **Accounts are Nodes** and **Transactions are Edges**.
 
----
+By fusing **tabular machine learning (Random Forest, AdaBoost)**, **Graph Neural Networks (GraphSAGE)**, **NetworkX topological analytics (PageRank, cycle detection)**, and **deterministic Early Warning Signals (EWS)**, GraphGuard identifies high-risk laundering patterns such as **fan-in smurfing**, **rapid mule layering**, **dormancy bursts**, and **closed circular cycling rings**.
 
-## 🚀 Key Features
-
-1. **Static Data & Reproducible Generator**: Pre-loaded with synthetic banking datasets (`accounts.csv` and `transactions.csv`) containing realistic normal behaviors alongside injected fraud scenarios.
-2. **Deterministic Early Warning Signals (EWS)**: Configurable rules engine monitoring 7 key signals:
-   - `EWS-001`: Velocity Spike (high transaction velocity in 1h window)
-   - `EWS-002`: Fan-In Mule Account (e.g. 35 unique senders transferring ~₹9,500 within 20 mins)
-   - `EWS-003`: Fan-Out Rapid Dispersion (single account spreading funds to 20+ receivers)
-   - `EWS-004`: Dormancy Burst (dormant account executing sudden transaction burst)
-   - `EWS-005`: Rapid Fund Movement (90%+ of incoming funds transferred out shortly after receipt)
-   - `EWS-006`: Suspicious Graph Neighbourhood (high concentration of risky counterparties)
-   - `EWS-007`: Circular Money Movement (closed ring flows `A -> B -> C -> D -> A`)
-3. **Multi-Signal Risk Fusion Engine**: Combines GNN probabilities (50%), deterministic EWS scores (35%), and graph context metrics (15%) into a unified 0–100 Account Risk Score with human-readable explanations.
-4. **Resilient GNN Fallback**: Integrates PyTorch Geometric GraphSAGE node classification with automatic fallback to Random Forest graph features (`ML_ENABLED=false`) to ensure prototype reliability.
-5. **Interactive Investigator Dashboard**: Next.js & Tailwind CSS dashboard featuring overview KPIs, account risk distribution, alert triaging, graph topology explorer, and deep-dive account investigation files.
+> **Academic & Compliance Notice:**
+> *The IBM Transactions for Anti-Money Laundering (AML) dataset is used as the primary experimental dataset. The generated AML Risk Score represents a model-derived statistical indicator and does not constitute conclusive legal proof of financial crime.*
 
 ---
 
-## 🏗️ Architecture & Technology Stack
+## 🏛️ System Architecture
 
 ```text
-┌──────────────────────────┐
-│      Static Dataset       │
-│ accounts + transactions   │
-└─────────────┬────────────┘
-              │
-              ▼
-┌──────────────────────────┐
-│   Python Data Pipeline    │
-│ validation + features     │
-└─────────────┬────────────┘
-              │
-              ▼
-┌──────────────────────────┐
-│      Graph Builder        │
-│ NetworkX / PyG graph      │
-└─────────────┬────────────┘
-              │
-       ┌──────┴────────┐
-       ▼               ▼
-┌─────────────┐ ┌──────────────┐
-│ EWS Rules   │ │ ML/GNN Model │
-└──────┬──────┘ └───────┬──────┘
-       │                │
-       └────────┬───────┘
-                ▼
-       ┌─────────────────┐
-       │   Risk Engine   │
-       └────────┬────────┘
-                ▼
-       ┌─────────────────┐
-       │ FastAPI Backend │
-       └────────┬────────┘
-                │
-                ▼
-       ┌─────────────────┐
-       │ Next.js Frontend│
-       │    Dashboard    │
-       └─────────────────┘
+                             IBM AML DATASET
+                 (LI-Small_Trans.csv / LI-Small_accounts.csv)
+                                   │
+                                   ▼
+                            IBM DATA ADAPTER
+               (Schema Normalization & String ID Enforcement)
+                                   │
+                                   ▼
+                        DATA PREPROCESSING ENGINE
+            (Cleaning, Validation, Temporal Parsing & Parquet Cache)
+                                   │
+                                   ▼
+                      FEATURE ENGINEERING ENGINE
+           (22 Behavioral, Temporal & Graph Centrality Features)
+                                   │
+         ┌─────────────────────────┼─────────────────────────┐
+         ▼                         ▼                         ▼
+   RANDOM FOREST                ADABOOST                 GRAPHSAGE
+(Tabular Baseline)        (Boosting Comparison)      (Graph Neural Net)
+         │                         │                         │
+         └─────────────────────────┼─────────────────────────┘
+                                   │
+                                   ▼
+                       MODEL COMPARISON & METRICS
+               (Precision, Recall, F1-Score, ROC-AUC, CM)
+                                   │
+                                   ▼
+                        DYNAMIC MODEL SELECTION
+                                   │
+         ┌─────────────────────────┴─────────────────────────┐
+         ▼                                                   ▼
+ DETERMINISTIC EWS ENGINE                             RISK FUSION ENGINE
+ (7 Rule-based Signals)                             (ML + EWS + Graph → 0-100)
+         │                                                   │
+         └─────────────────────────┬─────────────────────────┘
+                                   ▼
+                        FASTAPI BACKEND & SQLITE
+                                   │
+                                   ▼
+                       NEXT.JS / REACT FRONTEND
+         ┌─────────────────────────┼─────────────────────────┐
+         ▼                         ▼                         ▼
+   KPI Overview             3D Network Graph          Account Deep-Dive
 ```
-
-- **Frontend**: Next.js 14, React 18, Tailwind CSS, Lucide Icons, Recharts
-- **Backend**: Python 3.14, FastAPI, Pydantic, SQLAlchemy
-- **Database**: SQLite (`graphguard.db`)
-- **Graph & Machine Learning**: NetworkX, pandas, NumPy, scikit-learn, PyTorch / PyTorch Geometric
 
 ---
 
-## ⚡ Quick Start Guide
+## 📊 Dataset & Pipeline Configuration
 
-### Step 1: One-Command Demonstration Setup
-Seed the static dataset, build graph topology, extract features, train ML models, run EWS rules, and calculate fused risk scores:
+### 1. IBM Transactions for AML Dataset
+GraphGuard uses the IBM AML dataset (`LI-Small_Trans.csv` and `LI-Small_accounts.csv`):
+- **LI-Small_Trans.csv**: 6,924,049 transaction records with timestamps, sender/receiver bank IDs, duplicate `Account` columns, monetary amounts in multiple currencies, payment formats, and binary `Is Laundering` labels.
+- **LI-Small_accounts.csv**: 712,688 account records containing bank names, bank IDs, account numbers, and entity mappings.
 
+### 2. Environment Variables & Path Configuration
+The dataset location is fully configurable across local development, Google Colab, and production servers via environment variables:
+
+| Variable | Default Value | Description |
+| :--- | :--- | :--- |
+| `DATA_SOURCE` | `ibm` | Primary data source (`ibm` or `synthetic`) |
+| `IBM_DATA_DIR` | `./data` | Directory containing `LI-Small_Trans.csv` & `LI-Small_accounts.csv` |
+| `USE_PARQUET_CACHE` | `true` | Caches normalized DataFrames to `data/processed/*.parquet` |
+| `DATABASE_URL` | `sqlite:///./graphguard.db` | SQLAlchemy database connection URI |
+| `ML_ENABLED` | `true` | Enables/disables machine learning scoring |
+
+#### Google Colab / Cloud Storage Configuration
+To run on Google Colab with data mounted in Google Drive:
 ```bash
-python scripts/setup_demo.py
+export IBM_DATA_DIR="/content/drive/MyDrive/GraphGuard_Data"
+export DATA_SOURCE="ibm"
 ```
 
-### Step 2: Launch Backend API
-Start the FastAPI backend server:
+---
 
+## 🔬 Machine Learning & Graph Neural Networks
+
+### 1. The Three Evaluated Models
+GraphGuard implements and benchmarks three distinct models:
+
+1. **Random Forest Classifier**:
+   - Ensemble of 100 decision trees with balanced class weights and max depth = 8.
+   - Provides a strong traditional tabular baseline and calculates Gini feature importances.
+2. **AdaBoost Classifier**:
+   - Adaptive boosting ensemble with decision stump base learners and class-weighted rebalancing.
+   - Serves as the boosting-based comparative baseline.
+3. **GraphSAGE (Graph Neural Network)**:
+   - 2-layer mean-aggregation convolutional network ($h_{\mathcal{N}(v)}$) implemented in PyTorch.
+   - Captures relational structure across transaction counterparties and neighborhood topologies.
+
+### 2. Metric Evaluation Strategy
+Because AML transaction datasets exhibit extreme class imbalance (~0.05% laundering transactions), **Accuracy is never used as the primary metric**. The system evaluates models using:
+- **Recall**: Measures the fraction of actual money laundering accounts successfully caught.
+- **Precision**: Measures the fraction of flagged accounts that are truly suspicious.
+- **F1-Score**: Harmonic mean of Precision and Recall.
+- **ROC-AUC**: Receiver Operating Characteristic Area Under the Curve.
+- **Confusion Matrix**: True Positives, False Positives, True Negatives, False Negatives.
+
+The system dynamically designates the **Best Model** based on experimental F1-Score and Recall.
+
+### 3. Feature Engineering & Strict Leakage Prevention
+Account features are derived from transaction aggregates and graph properties without leaking the ground-truth target:
+- **Volume & Value**: Total transactions, incoming/outgoing counts, total amounts, average amounts, max transaction amount.
+- **Counterparties**: Unique senders, unique receivers, fan-in ratio, fan-out ratio.
+- **Temporal & Velocity**: 1-hour transaction velocity, 24-hour transaction velocity, dormancy gap days, account age.
+- **Graph Topology**: In-degree, out-degree, total degree, PageRank centrality, bounded cycle indicator (circular flow).
+- **Leakage Prevention**: Neither `Is Laundering` nor direct laundering-derived counts are included in feature matrices.
+
+---
+
+## 🚨 Deterministic Early Warning Signals (EWS)
+
+GraphGuard executes 7 deterministic AML rules:
+- `EWS-001` (**VELOCITY_SPIKE**): More than 15 transactions within a 1-hour rolling window.
+- `EWS-002` (**FAN_IN_SPIKE**): More than 10 unique senders transferring funds into a single account (smurfing/structuring).
+- `EWS-003` (**FAN_OUT_SPIKE**): More than 10 unique receivers receiving funds from a single account.
+- `EWS-004` (**DORMANCY_BURST**): Account dormant for >30 days suddenly executes burst activity.
+- `EWS-005` (**RAPID_MOVEMENT**): Account transfers out >80% of received funds (pass-through mule).
+- `EWS-006` (**SUSPICIOUS_NEIGHBOUR**): High concentration of flagged counterparties in graph neighborhood.
+- `EWS-007` (**CIRCULAR_FLOW**): Account is part of a closed transaction cycle (lengths 2–4).
+
+---
+
+## 🎯 Multi-Signal Risk Score Fusion (0–100)
+
+The final Account AML Risk Score is computed through calibrated fusion:
+$$\text{Risk Score} = 0.50 \times \text{ML Score} + 0.35 \times \text{EWS Score} + 0.15 \times \text{Graph Context Score}$$
+
+Risk Level categorization:
+- **LOW** (`0 – 29`): Normal banking patterns.
+- **MEDIUM** (`30 – 59`): Minor behavioral anomalies.
+- **HIGH** (`60 – 79`): Multiple risk triggers or high ML anomaly probability.
+- **CRITICAL** (`80 – 100`): Urgent AML investigation required (automated alert generated).
+
+---
+
+## 🚀 Execution Guide
+
+### 1. Setup & Train IBM Pipeline
+Run the end-to-end pipeline (preprocess IBM data, build graph, extract features, train all models, generate risk scores, seed database):
+
+```bash
+# Default (50,000 transaction sample for fast execution)
+python scripts/setup_ibm.py
+
+# Custom sample size
+python scripts/setup_ibm.py --sample-rows 100000
+
+# Force recompute without using Parquet cache
+python scripts/setup_ibm.py --force-recompute
+```
+
+### 2. Run Synthetic Fallback Mode (Optional)
+To verify synthetic mode compatibility:
+```bash
+python scripts/setup_demo.py --source synthetic
+```
+
+### 3. Start Backend API
 ```bash
 cd backend
 uvicorn app.main:app --port 8000 --reload
 ```
-- API Documentation: [http://localhost:8000/docs](http://localhost:8000/docs)
-- Health Check: `http://localhost:8000/health`
+- API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+- Model Metrics API: [http://localhost:8000/api/v1/models/metrics](http://localhost:8000/api/v1/models/metrics)
+- Health Check: [http://localhost:8000/health](http://localhost:8000/health)
 
-### Step 3: Launch Frontend Dashboard
-Open a new terminal window:
-
+### 4. Start Frontend UI
 ```bash
 cd frontend
-npm install
 npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
----
-
-## 🎓 Demo Scenario Walkthrough (Professor Presentation Story)
-
-1. **Step 1 — Overview Dashboard**:
-   - Open `http://localhost:3000` to inspect total accounts (2,000), transactions (25,000), critical risk accounts, and active alerts.
-2. **Step 2 — Search Mule Target `A102`**:
-   - Navigate to Accounts or search `A102`.
-   - Observe **CRITICAL RISK** (Score: 88 / 100).
-3. **Step 3 — Explainable Risk Breakdown**:
-   - Note the human-readable reasons:
-     - *"35 unique incoming counterparty accounts detected in peak window"* (Fan-In Spike)
-     - *"High transaction velocity detected (35 txns/hr)"* (Velocity Spike)
-     - *"Transferred out 91% of incoming funds shortly after receipt"* (Rapid Movement)
-4. **Step 4 — Graph Explorer**:
-   - Open Graph Explorer for `A102` to visually demonstrate the multi-node incoming fan-in structure and rapid outgoing transfers to connected high-risk nodes.
-
----
-
-## 🧪 Automated Testing
-
-Execute the automated pipeline test suite:
-
+### 5. Run Automated Tests
 ```bash
-python tests/test_pipeline.py
+python -m unittest tests/test_ibm_pipeline.py
 ```
 
 ---
 
-## 📂 Repository Structure
+## 📁 Repository Structure
 
 ```text
 gp/
 ├── backend/
 │   ├── app/
-│   │   ├── api/          # FastAPI routers (accounts, transactions, dashboard, alerts, ews, graph)
-│   │   ├── db/           # Database setup (database.py)
-│   │   ├── models/       # SQLAlchemy ORM models (models.py)
-│   │   ├── schemas/      # Pydantic request/response schemas
-│   │   ├── services/     # EWS engine, feature extraction, risk fusion logic
-│   │   └── main.py       # FastAPI application entry point
-├── frontend/
-│   ├── src/
-│   │   ├── app/          # Next.js App Router (dashboard, accounts, alerts, ews, graph)
-│   │   ├── lib/          # API client (api.ts)
-├── ml/
-│   ├── src/              # Synthetic generator, graph builder, feature extraction, baseline/GNN trainers
-│   └── artifacts/        # Scaler, model weights, feature schema, metrics.json
+│   │   ├── api/             # FastAPI routes (accounts, dashboard, graph, models, etc.)
+│   │   ├── db/              # SQLAlchemy database engine and session
+│   │   ├── models/          # ORM data models (Account, Transaction, RiskScore, etc.)
+│   │   ├── schemas/         # Pydantic validation schemas
+│   │   └── services/        # Business logic (ews_service, risk_service, graph_service)
+│   ├── .env                 # Backend environment settings
+│   └── main.py              # Application entrypoint
+├── config/
+│   └── settings.py          # Centralized configuration with env-variable fallbacks
 ├── data/
-│   └── generated/        # accounts.csv & transactions.csv
+│   ├── LI-Small_Trans.csv   # IBM AML Transactions dataset (raw reference)
+│   ├── LI-Small_accounts.csv# IBM AML Accounts metadata dataset (raw reference)
+│   ├── generated/           # Synthetic fallback data
+│   └── processed/           # Cached Parquet features & normalized tables
+├── frontend/                # Next.js 14, React, Tailwind CSS 3D visualization dashboard
+├── ml/
+│   ├── artifacts/           # Trained models (.pkl, .pt) and metrics.json
+│   └── src/
+│       ├── ibm_adapter.py   # IBM raw column normalization & string ID enforcer
+│       ├── ibm_preprocessing.py # Chunked loading, cleaning, & Parquet caching
+│       ├── features.py      # 22-feature account extraction engine
+│       ├── graph_builder.py # NetworkX directed graph builder
+│       ├── train_baseline.py# Random Forest trainer & multi-model comparison
+│       ├── train_adaboost.py# AdaBoost classifier trainer
+│       └── train_gnn.py     # Native PyTorch GraphSAGE trainer & inference
 ├── scripts/
-│   └── setup_demo.py     # One-command seed & setup script
-├── tests/
-│   └── test_pipeline.py  # End-to-end unit test suite
-└── README.md
+│   ├── setup_ibm.py         # End-to-end IBM pipeline seeding & training script
+│   └── setup_demo.py        # Demo script supporting both IBM and synthetic sources
+└── tests/
+    └── test_ibm_pipeline.py # Comprehensive unit & integration test suite
 ```
-=======
-# GraphGuard
-Real-Time Money Mule Network Detection Using Graph Neural Networks.
-# NOTE:
-MAKE YOUR OWN BRACH
->>>>>>> acdf58b8d22304e67fe36a9c37d54f59812ad652

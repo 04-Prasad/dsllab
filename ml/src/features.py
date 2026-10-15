@@ -1,12 +1,16 @@
 """
 GraphGuard Feature Engineering Engine
-Extracts account-level behavioral and graph features.
+=====================================
+Extracts account-level behavioral, temporal, and graph topological features.
+Compatible with both IBM AML dataset and synthetic data.
 """
 
+import logging
 import pandas as pd
 import numpy as np
 import networkx as nx
-from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 def extract_features(
@@ -16,22 +20,36 @@ def extract_features(
 ) -> pd.DataFrame:
     """
     Computes behavioral, network, and temporal features for all accounts.
-    Returns a DataFrame indexed by account_id.
+    Returns a DataFrame indexed by account_id with ground-truth label strictly segregated.
     """
+    logger.info("[FEATURES] Extracting features for %d accounts and %d transactions...", len(accounts_df), len(transactions_df))
+    
     tx_df = transactions_df.copy()
+    
+    # Ensure standard column names
+    sender_col = "sender_account_id" if "sender_account_id" in tx_df.columns else "sender_account"
+    receiver_col = "receiver_account_id" if "receiver_account_id" in tx_df.columns else "receiver_account"
+    
+    tx_df["sender_account_id"] = tx_df[sender_col].astype(str)
+    tx_df["receiver_account_id"] = tx_df[receiver_col].astype(str)
+    tx_df["amount"] = pd.to_numeric(tx_df["amount"], errors="coerce").fillna(0.0)
     tx_df["timestamp"] = pd.to_datetime(tx_df["timestamp"], errors="coerce")
     tx_df = tx_df.dropna(subset=["timestamp"])
 
-    # PageRank (skip if graph is empty)
+    max_tx_time = tx_df["timestamp"].max() if len(tx_df) > 0 else pd.Timestamp.now()
+    min_tx_time = tx_df["timestamp"].min() if len(tx_df) > 0 else max_tx_time
+
+    # 1. NetworkX Graph Topologies
+    logger.info("[FEATURES] Computing graph metrics (PageRank, cycle detection)...")
     if G.number_of_nodes() > 0 and G.number_of_edges() > 0:
         try:
             pagerank_dict = nx.pagerank(G, alpha=0.85, max_iter=100)
         except Exception:
             pagerank_dict = {n: 0.0 for n in G.nodes()}
     else:
-        pagerank_dict = {n: 0.0 for n in G.nodes()}
+        pagerank_dict = {str(acc): 0.0 for acc in accounts_df["account_id"]}
 
-    # Bounded short cycle detection (lengths 2..4 only, max 500 cycles checked)
+    # Bounded cycle detection (lengths 2..4, max 500 checked)
     circular_accounts: set = set()
     if G.number_of_nodes() > 0 and G.number_of_edges() > 0:
         try:
@@ -46,81 +64,102 @@ def extract_features(
         except Exception:
             pass
 
-    max_tx_time = tx_df["timestamp"].max() if len(tx_df) > 0 else pd.Timestamp.now()
-
-    # Identify all accounts labeled suspicious
     labeled_suspicious: set = set(
         accounts_df[accounts_df["label"] == 1]["account_id"].astype(str)
     )
 
-    # Fast indexing by sender and receiver
-    inc_grouped = {k: v for k, v in tx_df.groupby("receiver_account_id")}
-    out_grouped = {k: v for k, v in tx_df.groupby("sender_account_id")}
+    # 2. Pre-aggregate incoming and outgoing stats for speed
+    logger.info("[FEATURES] Aggregating transaction metrics per account...")
+    inc_agg = tx_df.groupby("receiver_account_id").agg(
+        inc_count=("amount", "count"),
+        inc_total=("amount", "sum"),
+        avg_inc=("amount", "mean"),
+        max_inc=("amount", "max"),
+        unique_senders=("sender_account_id", "nunique"),
+    )
+
+    out_agg = tx_df.groupby("sender_account_id").agg(
+        out_count=("amount", "count"),
+        out_total=("amount", "sum"),
+        avg_out=("amount", "mean"),
+        max_out=("amount", "max"),
+        unique_receivers=("receiver_account_id", "nunique"),
+    )
+
+    inc_agg_dict = inc_agg.to_dict(orient="index")
+    out_agg_dict = out_agg.to_dict(orient="index")
+
+    # Fast mapping for velocity & dormancy calculations
+    # Index transactions by sender and receiver
+    tx_by_sender = {k: v for k, v in tx_df[["sender_account_id", "timestamp", "amount"]].groupby("sender_account_id")}
+    tx_by_receiver = {k: v for k, v in tx_df[["receiver_account_id", "timestamp", "amount"]].groupby("receiver_account_id")}
 
     features_list = []
-
+    
     for _, acc_row in accounts_df.iterrows():
         acc_id = str(acc_row["account_id"])
 
-        # Account age
+        # Account age fallback
+        raw_created = acc_row.get("account_created_at", None)
         try:
-            created_at = pd.to_datetime(acc_row.get("account_created_at", max_tx_time))
+            if pd.isna(raw_created) or not str(raw_created).strip():
+                created_at = min_tx_time
+            else:
+                created_at = pd.to_datetime(raw_created)
         except Exception:
-            created_at = max_tx_time
+            created_at = min_tx_time
         account_age_days = max(1, int((max_tx_time - created_at).days))
 
-        # Fast dictionary lookup
-        inc_txs = inc_grouped.get(acc_id, pd.DataFrame())
-        out_txs = out_grouped.get(acc_id, pd.DataFrame())
+        # Lookups
+        inc_info = inc_agg_dict.get(acc_id, {})
+        out_info = out_agg_dict.get(acc_id, {})
 
-        inc_count = len(inc_txs)
-        out_count = len(out_txs)
+        inc_count = int(inc_info.get("inc_count", 0))
+        out_count = int(out_info.get("out_count", 0))
         total_txs = inc_count + out_count
 
-        inc_total = float(inc_txs["amount"].sum()) if inc_count > 0 else 0.0
-        out_total = float(out_txs["amount"].sum()) if out_count > 0 else 0.0
-        avg_inc = inc_total / inc_count if inc_count > 0 else 0.0
-        avg_out = out_total / out_count if out_count > 0 else 0.0
+        inc_total = float(inc_info.get("inc_total", 0.0))
+        out_total = float(out_info.get("out_total", 0.0))
+        avg_inc = float(inc_info.get("avg_inc", 0.0))
+        avg_out = float(out_info.get("avg_out", 0.0))
+        max_inc = float(inc_info.get("max_inc", 0.0))
+        max_out = float(out_info.get("max_out", 0.0))
+        max_amount = max(max_inc, max_out)
 
-        unique_senders = int(inc_txs["sender_account_id"].nunique()) if inc_count > 0 else 0
-        unique_receivers = int(out_txs["receiver_account_id"].nunique()) if out_count > 0 else 0
+        unique_senders = int(inc_info.get("unique_senders", 0))
+        unique_receivers = int(out_info.get("unique_receivers", 0))
 
-        # Velocity & Max Amount
+        # Velocity & Dormancy
         velocity_1h = 0
         velocity_24h = 0
-        max_amount = 0.0
+        dormancy_days = 0.0
 
         if total_txs > 0:
-            if inc_count > 0 and out_count > 0:
-                all_txs = pd.concat([inc_txs, out_txs])
-            elif inc_count > 0:
-                all_txs = inc_txs
-            else:
-                all_txs = out_txs
+            # Gather timestamps
+            ts_list = []
+            if acc_id in tx_by_sender:
+                ts_list.append(tx_by_sender[acc_id]["timestamp"])
+            if acc_id in tx_by_receiver:
+                ts_list.append(tx_by_receiver[acc_id]["timestamp"])
 
-            max_amount = float(all_txs["amount"].max())
-
-            try:
-                all_txs = all_txs.sort_values("timestamp")
-                ts_idx = all_txs.set_index("timestamp")
-                ts_idx["_cnt"] = 1
-                v1h = ts_idx["_cnt"].rolling("1h").sum()
-                velocity_1h = int(v1h.max()) if len(v1h) > 0 else 0
-                v24h = ts_idx["_cnt"].rolling("24h").sum()
-                velocity_24h = int(v24h.max()) if len(v24h) > 0 else 0
-            except Exception:
-                velocity_1h = total_txs
-                velocity_24h = total_txs
-
-        # Dormancy: longest gap between consecutive transactions (days)
-        dormancy_days = 0.0
-        if total_txs > 1:
-            try:
-                sorted_times = all_txs["timestamp"].sort_values()
-                gaps = sorted_times.diff().dt.total_seconds().dropna() / 86400.0
-                dormancy_days = float(gaps.max()) if len(gaps) > 0 else 0.0
-            except Exception:
-                dormancy_days = 0.0
+            if ts_list:
+                all_ts = pd.concat(ts_list).sort_values()
+                if len(all_ts) == 1:
+                    velocity_1h = 1
+                    velocity_24h = 1
+                    dormancy_days = 0.0
+                else:
+                    try:
+                        ts_idx = pd.DataFrame({"_cnt": 1}, index=all_ts)
+                        v1h = ts_idx["_cnt"].rolling("1h").sum()
+                        velocity_1h = int(v1h.max()) if len(v1h) > 0 else 0
+                        v24h = ts_idx["_cnt"].rolling("24h").sum()
+                        velocity_24h = int(v24h.max()) if len(v24h) > 0 else 0
+                        gaps = all_ts.diff().dt.total_seconds().dropna() / 86400.0
+                        dormancy_days = float(gaps.max()) if len(gaps) > 0 else 0.0
+                    except Exception:
+                        velocity_1h = total_txs
+                        velocity_24h = total_txs
 
         # Rapid movement ratio
         rapid_movement_ratio = 0.0
@@ -174,4 +213,5 @@ def extract_features(
             "label": int(acc_row.get("label", 0)),
         })
 
+    logger.info("[FEATURES] Extracted features for %d accounts successfully.", len(features_list))
     return pd.DataFrame(features_list)

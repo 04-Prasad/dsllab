@@ -14,13 +14,39 @@ if str(root_dir) not in sys.path:
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.db.database import engine, Base
-from backend.app.api import accounts, transactions, dashboard, alerts, ews, graph, auth, users
+from backend.app.api import accounts, transactions, dashboard, alerts, ews, graph, models, auth, users
 from backend.app.api.deps import RoleChecker
 
 all_roles = RoleChecker(["ADMIN", "INVESTIGATOR", "ANALYST"])
 
 # Create database tables if they do not exist
 Base.metadata.create_all(bind=engine)
+
+def seed_default_users():
+    from backend.app.db.database import SessionLocal
+    from backend.app.models.models import User
+    from backend.app.core.security import get_password_hash
+    db = SessionLocal()
+    try:
+        defaults = [
+            ("admin@graphguard.ai", "admin1234", "Admin User", "ADMIN"),
+            ("investigator@graphguard.ai", "investigator123", "Lead Investigator", "INVESTIGATOR"),
+            ("analyst@graphguard.ai", "analyst123", "AML Analyst", "ANALYST"),
+        ]
+        for email, pwd, name, role in defaults:
+            if not db.query(User).filter(User.email == email).first():
+                db.add(User(
+                    email=email,
+                    password_hash=get_password_hash(pwd),
+                    full_name=name,
+                    role=role,
+                    is_active=1,
+                ))
+        db.commit()
+    finally:
+        db.close()
+
+seed_default_users()
 
 app = FastAPI(
     title="GraphGuard API",
@@ -46,8 +72,12 @@ app.include_router(transactions.router, prefix="/api/v1", dependencies=[Depends(
 app.include_router(alerts.router, prefix="/api/v1") # Alerts has its own internal granular RoleCheckers
 app.include_router(ews.router, prefix="/api/v1", dependencies=[Depends(all_roles)])
 app.include_router(graph.router, prefix="/api/v1", dependencies=[Depends(all_roles)])
+app.include_router(models.router, prefix="/api/v1", dependencies=[Depends(all_roles)])
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(auth.router, prefix="/api/v1/api/auth", tags=["auth"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
+app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
 
 @app.get("/health")
 def health_check():

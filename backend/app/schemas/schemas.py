@@ -129,6 +129,9 @@ class EnrichedGraphNode(BaseModel):
     risky_neighbor_ratio: float = 0.0
     # Fraud label
     is_fraud: bool = False
+    # Relationship to the investigation target. Kept optional for the global
+    # analytical graph endpoint, and populated by /graph/investigation.
+    node_type: str = "normal"  # selected / incoming / outgoing / suspicious / normal
 
 
 class EnrichedGraphEdge(BaseModel):
@@ -137,6 +140,7 @@ class EnrichedGraphEdge(BaseModel):
     amount: float
     count: int
     tx_id: Optional[str] = None   # representative transaction ID
+    direction: str = "other"      # incoming / outgoing / lateral / other
 
 
 class GraphStats(BaseModel):
@@ -146,9 +150,86 @@ class GraphStats(BaseModel):
     rings: int = 0
     critical_nodes: int = 0
     high_nodes: int = 0
+    # Investigation-view metadata. These optional fields make the filtering
+    # explicit without changing the analytical graph response contract.
+    selected_account: Optional[str] = None
+    visible_nodes: Optional[int] = None
+    incoming_count: Optional[int] = None
+    outgoing_count: Optional[int] = None
+    suspicious_count: Optional[int] = None
+    visible_edges: Optional[int] = None
+    total_connected: Optional[int] = None
+    is_expanded: Optional[bool] = None
 
 
 class EnrichedGraphNetworkOut(BaseModel):
     nodes: List[EnrichedGraphNode]
     edges: List[EnrichedGraphEdge]
     stats: GraphStats
+
+
+# ── Investigation-view (filtered 3D subgraph) schemas ──────────────────────────
+
+class InvestigationNode(BaseModel):
+    """A node in the filtered investigation subgraph.
+    node_type classifies its relationship to the selected account."""
+    id: str
+    label: str
+    risk_score: float
+    risk_level: str
+    account_type: str
+    # Investigation classification
+    node_type: str = "normal"   # selected / incoming / outgoing / suspicious / normal
+    role: str = "NORMAL"
+    ring_id: Optional[str] = None
+    # EWS signals
+    ews_codes: List[str] = []
+    ews_types: List[str] = []
+    ews_count: int = 0
+    # Active alert
+    alert_id: Optional[str] = None
+    alert_severity: Optional[str] = None
+    # Transaction features
+    incoming_count: int = 0
+    outgoing_count: int = 0
+    incoming_total: float = 0.0
+    outgoing_total: float = 0.0
+    # Graph centrality metrics
+    pagerank: float = 0.0
+    in_degree: int = 0
+    out_degree: int = 0
+    betweenness: float = 0.0
+    risky_neighbor_ratio: float = 0.0
+    # Fraud label
+    is_fraud: bool = False
+    # Importance score used for ranking (higher = more important relationship)
+    importance: float = 0.0
+
+
+class InvestigationEdge(BaseModel):
+    """An aggregated edge in the investigation subgraph."""
+    source: str
+    target: str
+    amount: float
+    count: int
+    tx_id: Optional[str] = None
+    direction: str = "other"   # incoming / outgoing / lateral / other
+
+
+class InvestigationStats(BaseModel):
+    """Summary statistics for the investigation view."""
+    selected_account: str
+    visible_nodes: int = 0
+    incoming_count: int = 0
+    outgoing_count: int = 0
+    suspicious_count: int = 0
+    visible_edges: int = 0
+    total_connected: int = 0       # total connections in full graph (for "X of Y" display)
+    is_expanded: bool = False
+
+
+class InvestigationGraphOut(BaseModel):
+    """Response model for the investigation subgraph endpoint."""
+    nodes: List[InvestigationNode]
+    edges: List[InvestigationEdge]
+    stats: InvestigationStats

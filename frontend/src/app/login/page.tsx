@@ -2,12 +2,12 @@
 
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/lib/AuthContext";
-import { ShieldAlert, Eye, EyeOff } from "lucide-react";
+import { ShieldAlert, Eye, EyeOff, UserCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("admin@graphguard.ai");
+  const [password, setPassword] = useState("admin1234");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -20,6 +20,12 @@ export default function LoginPage() {
     }
   }, [user, router]);
 
+  const setDemoCredentials = (demoEmail: string, demoPass: string) => {
+    setEmail(demoEmail);
+    setPassword(demoPass);
+    setError("");
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -27,10 +33,13 @@ export default function LoginPage() {
 
     try {
       const formData = new URLSearchParams();
-      formData.append("username", email);
+      formData.append("username", email.trim());
       formData.append("password", password);
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/auth/login`, {
+      const rawUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const baseUrl = rawUrl.replace(/\/api\/v1\/?$/, "");
+
+      const res = await fetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
@@ -39,13 +48,14 @@ export default function LoginPage() {
       });
 
       if (!res.ok) {
-        throw new Error("Invalid email or password");
+        const errJson = await res.json().catch(() => null);
+        throw new Error(errJson?.detail || "Invalid email or password");
       }
 
       const data = await res.json();
       
       // Fetch user profile
-      const userRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/auth/me`, {
+      const userRes = await fetch(`${baseUrl}/api/auth/me`, {
         headers: {
           Authorization: `Bearer ${data.access_token}`
         }
@@ -123,7 +133,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full mt-2 bg-gradient-to-tr from-[#663af3] to-[#027dea] hover:from-[#7c54f5] hover:to-[#178bef] text-white font-medium rounded-xl px-4 py-3 shadow-[0_0_20px_rgba(102,58,243,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            className="w-full mt-2 bg-gradient-to-tr from-[#663af3] to-[#027dea] hover:from-[#7c54f5] hover:to-[#178bef] text-white font-medium rounded-xl px-4 py-3 shadow-[0_0_20px_rgba(102,58,243,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center cursor-pointer"
           >
             {isLoading ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -132,6 +142,36 @@ export default function LoginPage() {
             )}
           </button>
         </form>
+
+        {/* 1-Click Demo Accounts */}
+        <div className="relative z-10 mt-6 pt-5 border-t border-[rgba(186,215,247,0.1)]">
+          <p className="text-[11px] font-eyebrow text-[#9da7ba] uppercase tracking-wider text-center mb-3">
+            Quick Fill Demo Roles
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => setDemoCredentials("admin@graphguard.ai", "admin1234")}
+              className="py-1.5 px-2 rounded-lg bg-[rgba(102,58,243,0.12)] border border-[rgba(102,58,243,0.3)] text-[11px] text-[#c7d3ea] hover:bg-[rgba(102,58,243,0.25)] hover:text-white transition-all text-center cursor-pointer"
+            >
+              👑 Admin
+            </button>
+            <button
+              type="button"
+              onClick={() => setDemoCredentials("investigator@graphguard.ai", "investigator123")}
+              className="py-1.5 px-2 rounded-lg bg-[rgba(2,125,234,0.12)] border border-[rgba(2,125,234,0.3)] text-[11px] text-[#c7d3ea] hover:bg-[rgba(2,125,234,0.25)] hover:text-white transition-all text-center cursor-pointer"
+            >
+              🔍 Investigator
+            </button>
+            <button
+              type="button"
+              onClick={() => setDemoCredentials("analyst@graphguard.ai", "analyst123")}
+              className="py-1.5 px-2 rounded-lg bg-[rgba(16,185,129,0.12)] border border-[rgba(16,185,129,0.3)] text-[11px] text-[#c7d3ea] hover:bg-[rgba(16,185,129,0.25)] hover:text-white transition-all text-center cursor-pointer"
+            >
+              📊 Analyst
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

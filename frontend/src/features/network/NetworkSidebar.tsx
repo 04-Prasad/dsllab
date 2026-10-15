@@ -36,6 +36,12 @@ export default function NetworkSidebar({
 }: NetworkSidebarProps) {
   const [searchVal, setSearchVal] = useState("");
 
+  React.useEffect(() => {
+    if (stats?.selected_account) {
+      setSearchVal(stats.selected_account);
+    }
+  }, [stats?.selected_account]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchVal.trim()) onSearch(searchVal.trim().toUpperCase());
@@ -69,18 +75,7 @@ export default function NetworkSidebar({
           </button>
         </form>
 
-        {/* Quick account presets */}
-        <div className="flex flex-wrap gap-1.5 mt-2.5">
-          {["A102", "A450", "A601"].map((id) => (
-            <button
-              key={id}
-              onClick={() => { setSearchVal(id); onSearch(id); }}
-              className="px-2.5 py-0.5 rounded-md bg-[#0f172a] hover:bg-[#1e293b] border border-[#1e293b] text-[#38bdf8] text-[10px] font-mono font-semibold transition-colors cursor-pointer"
-            >
-              {id}
-            </button>
-          ))}
-        </div>
+
       </section>
 
       {/* Quick Filters */}

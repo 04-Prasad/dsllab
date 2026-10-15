@@ -23,6 +23,8 @@ export interface EnrichedGraphNode {
   betweenness: number;
   risky_neighbor_ratio: number;
   is_fraud: boolean;
+  /** Semantic role in the filtered investigation graph. */
+  node_type?: "selected" | "incoming" | "outgoing" | "suspicious" | "normal";
   // Three.js runtime (added by force-graph)
   x?: number;
   y?: number;
@@ -38,6 +40,7 @@ export interface EnrichedGraphEdge {
   amount: number;
   count: number;
   tx_id: string | null;
+  direction?: "incoming" | "outgoing" | "lateral" | "other";
 }
 
 export interface GraphStats {
@@ -47,6 +50,14 @@ export interface GraphStats {
   rings: number;
   critical_nodes: number;
   high_nodes: number;
+  selected_account?: string | null;
+  visible_nodes?: number | null;
+  incoming_count?: number | null;
+  outgoing_count?: number | null;
+  suspicious_count?: number | null;
+  visible_edges?: number | null;
+  total_connected?: number | null;
+  is_expanded?: boolean | null;
 }
 
 export interface EnrichedGraphNetworkOut {

@@ -12,7 +12,7 @@ from backend.app.schemas.schemas import (
     GraphNetworkOut, GraphNode, GraphEdge,
     EnrichedGraphNetworkOut,
 )
-from backend.app.services.graph_service import build_enriched_graph
+from backend.app.services.graph_service import build_enriched_graph, build_investigation_graph
 
 router = APIRouter(prefix="/graph", tags=["Graph"])
 
@@ -117,4 +117,24 @@ def get_network_graph(
         fraud_only=fraud_only,
         ring_members_only=ring_members_only,
         account_id=account_id,
+    )
+
+
+@router.get("/investigation", response_model=EnrichedGraphNetworkOut)
+def get_investigation_graph(
+    account_id: Optional[str] = Query(None, description="Account to investigate; defaults to the highest-risk account"),
+    incoming: int = Query(10, ge=1, le=22, description="Maximum ranked incoming counterparties"),
+    outgoing: int = Query(10, ge=1, le=22, description="Maximum ranked outgoing counterparties"),
+    expand: bool = Query(False, description="Show the next tier of ranked direct counterparties"),
+    db: Session = Depends(get_db),
+):
+    """Return a compact, aggregated visual subgraph without changing analytical data."""
+    if account_id and not db.query(Account).filter(Account.account_id == account_id).first():
+        raise HTTPException(status_code=404, detail=f"Account {account_id} not found")
+    return build_investigation_graph(
+        db=db,
+        account_id=account_id,
+        incoming_limit=incoming,
+        outgoing_limit=outgoing,
+        expand=expand,
     )

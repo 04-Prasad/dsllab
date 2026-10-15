@@ -157,8 +157,17 @@ export default function AccountDetailPage() {
           </div>
         </div>
 
-        {/* Risk Score Gauge */}
-        <div className="p-4 bg-gray-900/90 border border-gray-800 rounded-xl flex items-center space-x-4 min-w-[220px]">
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          <Link
+            href={`/graph?account_id=${account.account_id}`}
+            className="px-4 py-2.5 bg-[#38bdf8]/10 hover:bg-[#38bdf8]/20 text-[#38bdf8] border border-[#38bdf8]/30 hover:border-[#38bdf8]/60 rounded-xl text-xs font-bold transition-all shadow-[0_0_12px_rgba(56,189,248,0.15)] flex items-center gap-2 group cursor-pointer"
+          >
+            <Network className="w-4 h-4 text-[#38bdf8] group-hover:scale-110 transition-transform" />
+            <span>Explore in 3D Graph</span>
+          </Link>
+
+          {/* Risk Score Gauge */}
+          <div className="p-4 bg-gray-900/90 border border-gray-800 rounded-xl flex items-center space-x-4 min-w-[220px]">
           <div
             className={`w-16 h-16 rounded-full border-4 ${riskBorderColor} flex items-center justify-center font-mono font-bold text-xl text-white bg-gray-950/40`}
           >
@@ -175,6 +184,7 @@ export default function AccountDetailPage() {
           </div>
         </div>
       </div>
+    </div>
 
       {/* Main 3-column grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

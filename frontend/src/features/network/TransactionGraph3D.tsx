@@ -18,53 +18,50 @@ const ForceGraph3D = dynamic(() => import("react-force-graph-3d"), {
   ),
 });
 
-// ── GraphGuard Spec Risk Colors ─────────────────────────────────────────────
+// Direction communicates meaning in the investigation view; risk is conveyed
+// by a restrained halo, rather than turning the whole graph orange.
+const NODE_COLOURS = {
+  selected: 0xef4444,
+  incoming: 0x3b82f6,
+  outgoing: 0xf97316,
+  suspicious: 0xfacc15,
+  normal: 0x94a3b8,
+} as const;
 
-function riskColourHex(level: string, role: string): number {
-  if (role === "RING_MEMBER") return 0xa855f7; // Purple for ML Ring Member
-  switch (level) {
-    case "CRITICAL": return 0xef4444; // Red
-    case "HIGH":     return 0xf97316; // Orange
-    case "MEDIUM":   return 0xfacc15; // Yellow/Amber
-    default:         return 0x22c55e; // Emerald Green
-  }
-}
-
-function riskColourStr(level: string, role: string): string {
-  if (role === "RING_MEMBER") return "#a855f7";
-  switch (level) {
-    case "CRITICAL": return "#ef4444";
-    case "HIGH":     return "#f97316";
-    case "MEDIUM":   return "#facc15";
-    default:         return "#22c55e";
-  }
-}
-
-// Preserve existing metric: degree + risk score boost
 function nodeRadius(node: EnrichedGraphNode): number {
-  const degreeCount = (node.in_degree || 0) + (node.out_degree || 0);
-  const degreeBoost = Math.log1p(degreeCount) * 1.4;
-  const riskBoost = node.risk_score > 80 ? 4 : node.risk_score > 60 ? 2.5 : 0;
-  const roleBoost = node.role === "RING_MEMBER" ? 3 : node.role === "HUB" ? 4 : node.role === "MULE" ? 2.5 : 0;
-  return Math.max(3.5, 3.5 + degreeBoost + riskBoost + roleBoost);
+  if (node.node_type === "selected") return 7;
+  if (node.node_type === "suspicious") return 5.1;
+  return Math.min(4.1, 2.7 + Math.max(0, node.risk_score - 50) / 100);
 }
 
 // Log-scaled edge width
 function edgeWidth(edge: EnrichedGraphEdge): number {
   const amount = edge.amount ?? 0;
-  return Math.max(0.6, Math.log1p(amount / 2000) * 0.9);
+  return Math.min(2.4, Math.max(0.45, Math.log1p(amount / 2000) * 0.55));
 }
 
-function edgeColour(edge: EnrichedGraphEdge, isSelectedFlow: boolean): string {
-  if (isSelectedFlow) return "rgba(0, 245, 255, 0.85)";
-  const src = edge.source as EnrichedGraphNode;
-  const tgt = edge.target as EnrichedGraphNode;
-  if (typeof src === "object" && typeof tgt === "object") {
-    const maxRisk = Math.max(src.risk_score ?? 0, tgt.risk_score ?? 0);
-    if (maxRisk >= 80) return "rgba(239, 68, 68, 0.70)";
-    if (maxRisk >= 60) return "rgba(249, 115, 22, 0.55)";
-  }
-  return "rgba(100, 116, 139, 0.30)"; // Cool gray-blue
+function edgeColour(edge: EnrichedGraphEdge): string {
+  if (edge.direction === "incoming") return "rgba(59, 130, 246, 0.52)";
+  if (edge.direction === "outgoing") return "rgba(249, 115, 22, 0.52)";
+  return "rgba(148, 163, 184, 0.25)";
+}
+
+function targetLabelSprite(label: string) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 96;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+  context.font = "bold 28px monospace";
+  context.textAlign = "center";
+  context.fillStyle = "#fecaca";
+  context.fillText(`TARGET · ${label}`, 256, 56);
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(52, 9.75, 1);
+  sprite.position.set(0, 13, 0);
+  return sprite;
 }
 
 // ── Props ────────────────────────────────────────────────────────────────────
@@ -94,24 +91,38 @@ export default function TransactionGraph3D({
 }: TransactionGraph3DProps) {
   const fgRef = useRef<any>(null);
 
-  // Compute connected neighbor IDs when selectedNode is active for Focus Mode
-  const connectedNodeIds = useMemo(() => {
-    if (!selectedNode) return new Set<string>();
-    const set = new Set<string>();
-    edges.forEach((e) => {
-      const sId = typeof e.source === "object" ? (e.source as any).id : e.source;
-      const tId = typeof e.target === "object" ? (e.target as any).id : e.target;
-      if (sId === selectedNode.id) set.add(tId);
-      if (tId === selectedNode.id) set.add(sId);
-    });
-    return set;
-  }, [selectedNode, edges]);
+  // Keep the target central and arrange incoming/outgoing counterparties on
+  // opposing arcs. Fixed semantic positions are intentionally used here: this
+  // is an investigation view, not an unreadable global force-simulation dump.
+  const graphData = useMemo(() => {
+    const targetId = nodes.find((node) => node.node_type === "selected")?.id;
+    const incomingIds = new Set(edges.filter((edge) => edge.direction === "incoming").map((edge) => typeof edge.source === "object" ? edge.source.id : edge.source));
+    const outgoingIds = new Set(edges.filter((edge) => edge.direction === "outgoing").map((edge) => typeof edge.target === "object" ? edge.target.id : edge.target));
+    const incoming = nodes.filter((node) => node.id !== targetId && incomingIds.has(node.id));
+    const outgoing = nodes.filter((node) => node.id !== targetId && outgoingIds.has(node.id) && !incomingIds.has(node.id));
+    const positions = new Map<string, { x: number; y: number; z: number }>();
+    const placeSide = (side: EnrichedGraphNode[], x: number) => {
+      side.forEach((node, index) => {
+        const angle = side.length <= 1 ? 0 : -1.12 + (index / (side.length - 1)) * 2.24;
+        const radius = 62 + (index % 3) * 13;
+        positions.set(node.id, {
+          x,
+          y: Math.sin(angle) * radius,
+          z: Math.cos(angle) * radius * 0.55,
+        });
+      });
+    };
+    placeSide(incoming, -105);
+    placeSide(outgoing, 105);
 
-  // Memoize graph data
-  const graphData = useMemo(
-    () => ({ nodes: nodes as any[], links: edges as any[] }),
-    [nodes, edges]
-  );
+    return {
+      nodes: nodes.map((node) => {
+        const pos = node.node_type === "selected" ? { x: 0, y: 0, z: 0 } : positions.get(node.id) ?? { x: 0, y: 0, z: 0 };
+        return { ...node, ...pos, fx: pos.x, fy: pos.y, fz: pos.z };
+      }),
+      links: edges.map((edge) => ({ ...edge })),
+    };
+  }, [nodes, edges]);
 
   // Focus camera on a specific node by id
   const focusNode = useCallback(
@@ -151,12 +162,11 @@ export default function TransactionGraph3D({
   const nodeThreeObject = useCallback(
     (node: any) => {
       const n = node as EnrichedGraphNode;
-      const isSelected = selectedNode && n.id === selectedNode.id;
-      const isNeighbor = selectedNode && connectedNodeIds.has(n.id);
-      const isDimmed = selectedNode && !isSelected && !isNeighbor;
+      const isTarget = n.node_type === "selected";
+      const isDetailSelected = selectedNode?.id === n.id;
 
       const r = nodeRadius(n);
-      const hexColor = isSelected ? 0x00f5ff : riskColourHex(n.risk_level, n.role);
+      const hexColor = NODE_COLOURS[n.node_type ?? "normal"];
 
       const group = new THREE.Group();
 
@@ -164,31 +174,31 @@ export default function TransactionGraph3D({
       const geometry = new THREE.SphereGeometry(r, 24, 24);
       const material = new THREE.MeshPhongMaterial({
         color: hexColor,
-        emissive: isSelected ? 0x00a8ff : (n.risk_score >= 80 ? 0x440000 : 0x020617),
+        emissive: isTarget ? 0x5c0a0a : (isDetailSelected ? 0x0b2942 : 0x020617),
         shininess: 80,
-        transparent: true,
-        opacity: isDimmed ? 0.15 : 0.95,
+        transparent: false,
+        opacity: 0.96,
       });
 
       const sphere = new THREE.Mesh(geometry, material);
       group.add(sphere);
 
-      // Outer Risk Halo / Glow Ring for High, Critical, Ring Member, or Selected accounts
-      if (!isDimmed && (n.risk_score >= 60 || n.role === "RING_MEMBER" || isSelected)) {
-        const haloRadius = r * (isSelected ? 1.5 : n.risk_score >= 80 ? 1.4 : 1.25);
+      if (isTarget) {
+        const label = targetLabelSprite(n.id);
+        if (label) group.add(label);
+      }
+
+      // A restrained halo calls attention to the investigation target and
+      // genuinely suspicious neighbours without flooding the scene with glow.
+      if (isTarget || n.node_type === "suspicious" || isDetailSelected) {
+        const haloRadius = r * (isTarget ? 1.55 : 1.28);
         const haloGeo = new THREE.SphereGeometry(haloRadius, 16, 16);
-        const haloColor = isSelected
-          ? 0x00f5ff
-          : n.risk_score >= 80
-          ? 0xef4444
-          : n.risk_score >= 60
-          ? 0xf97316
-          : 0xa855f7;
+        const haloColor = isTarget ? NODE_COLOURS.selected : isDetailSelected ? 0x38bdf8 : NODE_COLOURS.suspicious;
 
         const haloMat = new THREE.MeshBasicMaterial({
           color: haloColor,
           transparent: true,
-          opacity: isSelected ? 0.35 : n.risk_score >= 80 ? 0.28 : 0.18,
+          opacity: isTarget ? 0.28 : 0.16,
           side: THREE.BackSide,
         });
 
@@ -198,15 +208,14 @@ export default function TransactionGraph3D({
 
       return group;
     },
-    [selectedNode, connectedNodeIds]
+    [selectedNode]
   );
 
   const handleNodeClick = useCallback(
     (node: any) => {
       onNodeClick(node as EnrichedGraphNode);
-      focusNode((node as EnrichedGraphNode).id);
     },
-    [onNodeClick, focusNode]
+    [onNodeClick]
   );
 
   const handleNodeHover = useCallback(
@@ -217,46 +226,23 @@ export default function TransactionGraph3D({
     [onNodeHover]
   );
 
-  const linkColor = useCallback(
-    (link: any) => {
-      const e = link as EnrichedGraphEdge;
-      const sId = typeof e.source === "object" ? (e.source as any).id : e.source;
-      const tId = typeof e.target === "object" ? (e.target as any).id : e.target;
-      const isSelectedFlow = !!(selectedNode && (sId === selectedNode.id || tId === selectedNode.id));
-
-      if (selectedNode && !isSelectedFlow) return "rgba(30, 41, 59, 0.10)";
-      return edgeColour(e, isSelectedFlow);
-    },
-    [selectedNode]
-  );
+  const linkColor = useCallback((link: any) => edgeColour(link as EnrichedGraphEdge), []);
 
   const linkWidth = useCallback(
     (link: any) => {
       const e = link as EnrichedGraphEdge;
-      const sId = typeof e.source === "object" ? (e.source as any).id : e.source;
-      const tId = typeof e.target === "object" ? (e.target as any).id : e.target;
-      const isSelectedFlow = !!(selectedNode && (sId === selectedNode.id || tId === selectedNode.id));
-      const baseW = edgeWidth(e);
-      return isSelectedFlow ? baseW * 1.8 : baseW;
+      return edgeWidth(e);
     },
-    [selectedNode]
+    []
   );
 
   // Directional flow particles representing money movement
   const linkDirectionalParticles = useCallback(
     (link: any) => {
       const e = link as EnrichedGraphEdge;
-      const sId = typeof e.source === "object" ? (e.source as any).id : e.source;
-      const tId = typeof e.target === "object" ? (e.target as any).id : e.target;
-      const isSelectedFlow = !!(selectedNode && (sId === selectedNode.id || tId === selectedNode.id));
-
-      if (selectedNode && !isSelectedFlow) return 0;
-      const amount = e.amount ?? 0;
-      if (amount > 100000) return 5;
-      if (amount > 10000) return 3;
-      return 2;
+      return e.amount > 100000 ? 2 : 1;
     },
-    [selectedNode]
+    []
   );
 
   const linkDirectionalParticleSpeed = useCallback(() => 0.006, []);
@@ -264,10 +250,7 @@ export default function TransactionGraph3D({
   const linkDirectionalParticleColor = useCallback(
     (link: any) => {
       const e = link as EnrichedGraphEdge;
-      const src = e.source as EnrichedGraphNode;
-      if (typeof src === "object" && src.risk_level === "CRITICAL") return "#ef4444";
-      if (typeof src === "object" && src.risk_level === "HIGH") return "#f97316";
-      return "#38bdf8"; // Cyan directional flow
+      return e.direction === "incoming" ? "#60a5fa" : "#fb923c";
     },
     []
   );
@@ -287,16 +270,22 @@ export default function TransactionGraph3D({
         linkDirectionalParticles={linkDirectionalParticles}
         linkDirectionalParticleSpeed={linkDirectionalParticleSpeed}
         linkDirectionalParticleColor={linkDirectionalParticleColor}
-        linkDirectionalParticleWidth={2.5}
+        linkDirectionalParticleWidth={1.3}
+        linkLabel={(link: any) => {
+          const edge = link as EnrichedGraphEdge;
+          const source = typeof edge.source === "object" ? (edge.source as EnrichedGraphNode).id : edge.source;
+          const target = typeof edge.target === "object" ? (edge.target as EnrichedGraphNode).id : edge.target;
+          return `${source} → ${target}\n${edge.count} transactions · $${edge.amount.toLocaleString()}`;
+        }}
         onNodeClick={handleNodeClick}
         onNodeHover={handleNodeHover}
-        enableNodeDrag={true}
+        enableNodeDrag={false}
         enableNavigationControls={true}
         showNavInfo={false}
-        d3AlphaDecay={0.015}
-        d3VelocityDecay={0.25}
-        warmupTicks={60}
-        cooldownTicks={300}
+        d3AlphaDecay={0.08}
+        d3VelocityDecay={0.8}
+        warmupTicks={0}
+        cooldownTicks={0}
       />
     </div>
   );

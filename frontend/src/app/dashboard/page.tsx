@@ -131,7 +131,7 @@ export default function DashboardPage() {
           Make sure the FastAPI backend is running on{" "}
           <code className="font-mono">localhost:8000</code> and the database has
           been seeded with{" "}
-          <code className="font-mono">python scripts/setup_demo.py</code>.
+          <code className="font-mono">python scripts/setup_ibm.py</code>.
         </p>
         <button
           onClick={loadData}

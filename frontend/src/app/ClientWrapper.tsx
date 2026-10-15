@@ -122,16 +122,6 @@ function MainLayout({ children }: { children: React.ReactNode }) {
             </Link>
           </nav>
 
-          <div className="p-4 glass-card rounded-2xl space-y-2 text-xs border border-[rgba(186,215,247,0.12)] bg-[rgba(102,58,243,0.04)]">
-            <div className="font-semibold text-[#d8ecf8]">Demo Mule Target</div>
-            <div className="text-[#9da7ba]">Account <span className="font-mono text-amber-300">A102</span> seeded with 35 fan-in senders & rapid movement.</div>
-            <Link
-              href="/accounts/A102"
-              className="inline-flex items-center text-[#663af3] hover:text-[#b6d9fc] font-medium pt-1 transition-colors"
-            >
-              Investigate A102 →
-            </Link>
-          </div>
         </aside>
 
         {/* Main Content Viewport */}

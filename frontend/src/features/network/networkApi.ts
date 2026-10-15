@@ -10,6 +10,9 @@ export interface NetworkQueryParams {
   fraud_only?: boolean;
   ring_members_only?: boolean;
   limit?: number;
+  incoming?: number;
+  outgoing?: number;
+  expand?: boolean;
 }
 
 export async function fetchNetworkGraph(
@@ -22,9 +25,23 @@ export async function fetchNetworkGraph(
   if (params.fraud_only) qs.set("fraud_only", "true");
   if (params.ring_members_only) qs.set("ring_members_only", "true");
   if (params.limit) qs.set("limit", String(params.limit));
+  if (params.incoming) qs.set("incoming", String(params.incoming));
+  if (params.outgoing) qs.set("outgoing", String(params.outgoing));
+  if (params.expand) qs.set("expand", "true");
 
-  const url = `${API_BASE}/graph/network${qs.toString() ? `?${qs}` : ""}`;
-  const res = await fetch(url, { cache: "no-store" });
+  // The 3D canvas renders this compact investigation subgraph. The existing
+  // /graph/network endpoint remains the full analytical graph API.
+  const url = `${API_BASE}/graph/investigation${qs.toString() ? `?${qs}` : ""}`;
+  const token = typeof window !== "undefined" ? sessionStorage.getItem("auth_token") : null;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(url, { 
+    cache: "no-store",
+    headers,
+  });
 
   if (!res.ok) {
     const msg = await res.text().catch(() => res.statusText);

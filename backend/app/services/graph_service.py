@@ -9,7 +9,7 @@ data, and returns the EnrichedGraphNetworkOut DTO for the 3D visualizer.
 from typing import Dict, List, Optional, Set, Tuple, Any
 import networkx as nx
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 
 from backend.app.models.models import Account, Transaction, AccountFeature, EWSSignal, Alert
 from backend.app.schemas.schemas import (
@@ -26,6 +26,15 @@ ROLE_THRESHOLDS = {
     "mule_rapid_ratio": 0.80,
     "suspicious_neighbour_ratio": 0.35,
 }
+
+# These limits only apply to the renderer's investigation subgraph. They never
+# change the full transaction graph used by ML, reporting, or analytics.
+DEFAULT_MAX_INCOMING_NODES = 10
+DEFAULT_MAX_OUTGOING_NODES = 10
+EXPANDED_MAX_INCOMING_NODES = 20
+EXPANDED_MAX_OUTGOING_NODES = 20
+MAX_VISIBLE_NODES = 45
+MAX_VISIBLE_EDGES = 44
 
 
 def _classify_role(
@@ -301,7 +310,7 @@ def build_enriched_graph(
     visible_ids = {n.id for n in enriched_nodes}
     enriched_edges: List[EnrichedGraphEdge] = []
     for (src, tgt), agg in edge_agg.items():
-        if src in visible_ids and tgt in visible_ids:
+        if src in visible_ids and tgt in visible_ids and src != tgt:
             enriched_edges.append(
                 EnrichedGraphEdge(
                     source=src,
@@ -332,3 +341,216 @@ def build_enriched_graph(
         edges=enriched_edges,
         stats=stats,
     )
+
+
+def build_investigation_graph(
+    db: Session,
+    account_id: Optional[str] = None,
+    incoming_limit: int = DEFAULT_MAX_INCOMING_NODES,
+    outgoing_limit: int = DEFAULT_MAX_OUTGOING_NODES,
+    expand: bool = False,
+) -> EnrichedGraphNetworkOut:
+    """Build a compact, aggregated subgraph for the 3D investigation view.
+
+    The complete transaction graph remains in the database and in the existing
+    analytical endpoint. This function deliberately selects only the most
+    meaningful direct relationships around one target account for rendering.
+    """
+    if account_id:
+        selected = db.query(Account).filter(Account.account_id == account_id).first()
+    else:
+        # A useful first view for the dashboard: investigate the highest-risk
+        # account rather than drawing a dense global graph.
+        selected = (
+            db.query(Account)
+            .order_by(Account.current_risk_score.desc())
+            .first()
+        )
+
+    if not selected:
+        return EnrichedGraphNetworkOut(nodes=[], edges=[], stats=GraphStats())
+
+    selected_id = selected.account_id
+    if expand:
+        incoming_limit = max(incoming_limit, EXPANDED_MAX_INCOMING_NODES)
+        outgoing_limit = max(outgoing_limit, EXPANDED_MAX_OUTGOING_NODES)
+    incoming_limit = min(max(incoming_limit, 1), MAX_VISIBLE_NODES // 2)
+    outgoing_limit = min(max(outgoing_limit, 1), MAX_VISIBLE_NODES // 2)
+
+    # Aggregate in SQL before materialising data. Self transactions remain in
+    # the analytical data but are intentionally absent from the rendered view.
+    relationship_rows = (
+        db.query(
+            Transaction.sender_account_id.label("source"),
+            Transaction.receiver_account_id.label("target"),
+            func.sum(Transaction.amount).label("amount"),
+            func.count(Transaction.id).label("count"),
+            func.min(Transaction.transaction_id).label("tx_id"),
+        )
+        .filter(
+            or_(
+                Transaction.sender_account_id == selected_id,
+                Transaction.receiver_account_id == selected_id,
+            ),
+            Transaction.sender_account_id != Transaction.receiver_account_id,
+        )
+        .group_by(Transaction.sender_account_id, Transaction.receiver_account_id)
+        .all()
+    )
+
+    total_connected = len({
+        row.source if row.target == selected_id else row.target
+        for row in relationship_rows
+    })
+    peer_ids = {
+        row.source if row.target == selected_id else row.target
+        for row in relationship_rows
+    }
+    related_accounts = db.query(Account).filter(Account.account_id.in_(peer_ids)).all() if peer_ids else []
+    account_map: Dict[str, Account] = {selected_id: selected, **{a.account_id: a for a in related_accounts}}
+    feature_rows = (
+        db.query(AccountFeature).filter(AccountFeature.account_id.in_(list(account_map))).all()
+        if account_map else []
+    )
+    feature_map = {feature.account_id: feature for feature in feature_rows}
+    ews_rows = db.query(EWSSignal).filter(EWSSignal.account_id.in_(list(account_map))).all() if account_map else []
+    ews_map: Dict[str, List[EWSSignal]] = {}
+    for signal in ews_rows:
+        ews_map.setdefault(signal.account_id, []).append(signal)
+    alert_rows = (
+        db.query(Alert)
+        .filter(Alert.account_id.in_(list(account_map)), Alert.status.in_(["NEW", "UNDER_REVIEW", "ESCALATED"]))
+        .order_by(Alert.risk_score.desc())
+        .all()
+        if account_map else []
+    )
+    alert_map: Dict[str, Alert] = {}
+    for alert in alert_rows:
+        alert_map.setdefault(alert.account_id, alert)
+
+    max_amount = max((float(row.amount or 0) for row in relationship_rows), default=1.0)
+    max_count = max((int(row.count or 0) for row in relationship_rows), default=1)
+
+    def importance(row: Any) -> float:
+        peer_id = row.source if row.target == selected_id else row.target
+        peer = account_map.get(peer_id)
+        risk = float(peer.current_risk_score if peer else 0.0) / 100.0
+        suspicious_bonus = 0.25 if peer and (peer.label == 1 or peer.current_risk_level in ("HIGH", "CRITICAL")) else 0.0
+        # Volume is primary; frequency and risk make smaller but suspicious
+        # relationships discoverable without letting them dominate the view.
+        return (float(row.amount or 0) / max_amount) * 0.60 + (int(row.count or 0) / max_count) * 0.20 + risk * 0.20 + suspicious_bonus
+
+    incoming_rows = sorted(
+        (row for row in relationship_rows if row.target == selected_id),
+        key=importance,
+        reverse=True,
+    )[:incoming_limit]
+    outgoing_rows = sorted(
+        (row for row in relationship_rows if row.source == selected_id),
+        key=importance,
+        reverse=True,
+    )[:outgoing_limit]
+    selected_rows = (incoming_rows + outgoing_rows)[:MAX_VISIBLE_EDGES]
+
+    # A peer can appear in both directions. Retain both aggregated edges, but
+    # give the node one stable semantic type for a clear colour assignment.
+    peer_directions: Dict[str, Set[str]] = {}
+    peer_importance: Dict[str, float] = {}
+    for row in selected_rows:
+        peer_id = row.source if row.target == selected_id else row.target
+        direction = "incoming" if row.target == selected_id else "outgoing"
+        peer_directions.setdefault(peer_id, set()).add(direction)
+        peer_importance[peer_id] = max(peer_importance.get(peer_id, 0.0), importance(row))
+
+    # At most a small number of yellow nodes are useful in a directed view.
+    # This avoids generated/demo data where many accounts carry alerts from
+    # turning every counterpart into the same visual category.
+    suspicious_candidates = [
+        node_id for node_id in peer_directions
+        if (
+            (account_map.get(node_id) and (account_map[node_id].current_risk_score >= 80 or account_map[node_id].label == 1))
+            or node_id in alert_map
+            or node_id in ews_map
+        )
+    ]
+    suspicious_peer_ids = set(sorted(
+        suspicious_candidates,
+        key=lambda node_id: (
+            float(account_map[node_id].current_risk_score if node_id in account_map else 0),
+            peer_importance.get(node_id, 0.0),
+        ),
+        reverse=True,
+    )[:3])
+
+    def node_type_for(node_id: str) -> str:
+        if node_id == selected_id:
+            return "selected"
+        account = account_map.get(node_id)
+        # Direction is the default semantic cue. Yellow is reserved for the
+        # few most important corroborated suspicious neighbours.
+        if account and node_id in suspicious_peer_ids:
+            return "suspicious"
+        directions = peer_directions.get(node_id, set())
+        return "incoming" if "incoming" in directions else "outgoing" if "outgoing" in directions else "normal"
+
+    def make_node(node_id: str) -> EnrichedGraphNode:
+        account = account_map.get(node_id)
+        feature = feature_map.get(node_id)
+        signals = ews_map.get(node_id, [])
+        alert = alert_map.get(node_id)
+        risk_score = float(account.current_risk_score if account else 0.0)
+        risk_level = account.current_risk_level if account else "LOW"
+        role = "SUSPICIOUS_NEIGHBOUR" if node_type_for(node_id) == "suspicious" else "NORMAL"
+        return EnrichedGraphNode(
+            id=node_id,
+            label=node_id,
+            risk_score=round(risk_score, 1),
+            risk_level=risk_level,
+            account_type=account.account_type if account else "SAVINGS",
+            role=role,
+            ews_codes=[signal.signal_code for signal in signals],
+            ews_types=[signal.signal_type for signal in signals],
+            ews_count=len(signals),
+            alert_id=alert.alert_id if alert else None,
+            alert_severity=alert.severity if alert else None,
+            incoming_count=int(feature.incoming_count or 0) if feature else 0,
+            outgoing_count=int(feature.outgoing_count or 0) if feature else 0,
+            incoming_total=round(float(feature.incoming_total or 0), 2) if feature else 0.0,
+            outgoing_total=round(float(feature.outgoing_total or 0), 2) if feature else 0.0,
+            in_degree=int(feature.in_degree or 0) if feature else 0,
+            out_degree=int(feature.out_degree or 0) if feature else 0,
+            risky_neighbor_ratio=round(float(feature.risky_neighbor_ratio or 0), 4) if feature else 0.0,
+            is_fraud=bool(account and account.label == 1),
+            node_type=node_type_for(node_id),
+        )
+
+    ordered_peer_ids = sorted(peer_directions, key=lambda nid: peer_importance[nid], reverse=True)
+    nodes = [make_node(selected_id)] + [make_node(node_id) for node_id in ordered_peer_ids]
+    edges = [
+        EnrichedGraphEdge(
+            source=row.source,
+            target=row.target,
+            amount=round(float(row.amount or 0), 2),
+            count=int(row.count or 0),
+            tx_id=row.tx_id,
+            direction="incoming" if row.target == selected_id else "outgoing",
+        )
+        for row in selected_rows
+    ]
+    suspicious_count = sum(1 for node in nodes if node.node_type == "suspicious")
+    stats = GraphStats(
+        total_nodes=len(nodes),
+        fraud_nodes=sum(1 for node in nodes if node.is_fraud or node.risk_level in ("HIGH", "CRITICAL")),
+        total_edges=len(edges),
+        critical_nodes=sum(1 for node in nodes if node.risk_level == "CRITICAL"),
+        high_nodes=sum(1 for node in nodes if node.risk_level == "HIGH"),
+        selected_account=selected_id,
+        visible_nodes=len(nodes),
+        incoming_count=len(incoming_rows),
+        outgoing_count=len(outgoing_rows),
+        suspicious_count=suspicious_count,
+        visible_edges=len(edges),
+        total_connected=total_connected,
+        is_expanded=expand,
+    )
+    return EnrichedGraphNetworkOut(nodes=nodes, edges=edges, stats=stats)
