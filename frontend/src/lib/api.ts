@@ -95,4 +95,10 @@ export const api = {
     if (params?.limit) query.append("limit", String(params.limit));
     return fetchJSON<any>(`/graph/search?${query.toString()}`);
   },
+
+  // Models & Evaluation
+  getModelMetrics: () => fetchJSON<any>("/models/metrics"),
+  getModelComparison: () => fetchJSON<any>("/models/comparison"),
+  getFeatureSchema: () => fetchJSON<any>("/models/features"),
+  getXGBoostMetrics: () => fetchJSON<any>("/models/xgboost"),
 };

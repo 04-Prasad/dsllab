@@ -88,16 +88,20 @@ export DATA_SOURCE="ibm"
 
 ## 🔬 Machine Learning & Graph Neural Networks
 
-### 1. The Three Evaluated Models
-GraphGuard implements and benchmarks three distinct models:
+### 1. Evaluated Models & Base Model
+GraphGuard implements and benchmarks four distinct models, designating **XGBoost** as the production base model:
 
-1. **Random Forest Classifier**:
+1. **XGBoost Classifier (Designated Base Model)**:
+   - Gradient boosted decision trees optimized with `scale_pos_weight` to address AML class imbalance (~0.05% positive prevalence).
+   - Features precision-recall threshold tuning on validation splits to minimize alert fatigue while maintaining >= 90% recall.
+   - Deployed as the primary production base model for fused risk scoring and alert generation.
+2. **Random Forest Classifier**:
    - Ensemble of 100 decision trees with balanced class weights and max depth = 8.
-   - Provides a strong traditional tabular baseline and calculates Gini feature importances.
-2. **AdaBoost Classifier**:
+   - Provides a traditional tabular baseline and calculates Gini feature importances.
+3. **AdaBoost Classifier**:
    - Adaptive boosting ensemble with decision stump base learners and class-weighted rebalancing.
    - Serves as the boosting-based comparative baseline.
-3. **GraphSAGE (Graph Neural Network)**:
+4. **GraphSAGE (Graph Neural Network)**:
    - 2-layer mean-aggregation convolutional network ($h_{\mathcal{N}(v)}$) implemented in PyTorch.
    - Captures relational structure across transaction counterparties and neighborhood topologies.
 

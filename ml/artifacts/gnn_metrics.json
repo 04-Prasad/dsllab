@@ -1,27 +1,27 @@
 {
   "model_type": "GraphSAGE",
-  "precision": 0.0042,
-  "recall": 1.0,
-  "f1_score": 0.0084,
-  "roc_auc": 0.9922,
-  "pr_auc": 0.0049,
+  "precision": 0.0137,
+  "recall": 0.9744,
+  "f1_score": 0.027,
+  "roc_auc": 0.9666,
+  "pr_auc": 0.1259,
   "threshold": 0.5,
   "train_class_counts": {
-    "0": 121830,
-    "1": 9
+    "0": 392298,
+    "1": 235
   },
   "test_class_counts": {
-    "0": 40610,
-    "1": 3
+    "0": 130767,
+    "1": 78
   },
   "confusion_matrix": [
     [
-      39903,
-      707
+      125291,
+      5476
     ],
     [
-      0,
-      3
+      2,
+      76
     ]
   ],
   "epochs": 40

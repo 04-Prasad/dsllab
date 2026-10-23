@@ -14,6 +14,8 @@ import {
   ArrowUpRight,
   RefreshCw,
   ExternalLink,
+  Cpu,
+  CheckCircle2,
 } from "lucide-react";
 import {
   PieChart,
@@ -88,6 +90,7 @@ const KPI_CONFIGS = [
 
 export default function DashboardPage() {
   const [summary, setSummary] = useState<any>(null);
+  const [modelComparison, setModelComparison] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,8 +98,18 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       setError(null);
-      const data = await api.getDashboardSummary();
-      setSummary(data);
+      const [dataRes, compRes] = await Promise.allSettled([
+        api.getDashboardSummary(),
+        api.getModelComparison(),
+      ]);
+      if (dataRes.status === "fulfilled") {
+        setSummary(dataRes.value);
+      } else {
+        throw new Error(dataRes.reason?.message ?? "Failed to load dashboard summary");
+      }
+      if (compRes.status === "fulfilled") {
+        setModelComparison(compRes.value);
+      }
     } catch (err: any) {
       setError(err.message ?? "Failed to load dashboard summary");
     } finally {
@@ -341,6 +354,110 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
+
+          {/* Model Benchmark & Comparison */}
+          {modelComparison && modelComparison.models && (
+            <div className="glass-card p-6 space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <Cpu className="w-5 h-5 text-indigo-400" />
+                    <h3 className="text-lg font-display font-medium text-[#d8ecf8]">
+                      ML Model Benchmark & Evaluation
+                    </h3>
+                  </div>
+                  <p className="text-xs text-[#9da7ba] mt-0.5">
+                    Evaluated on held-out test split (40,613 accounts, 3 positive laundering targets).
+                  </p>
+                </div>
+                {modelComparison.best_model && (
+                  <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-indigo-950/60 border border-indigo-700/50 text-indigo-300 text-xs font-mono">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Base Model: <strong>{modelComparison.best_model_display || modelComparison.best_model}</strong></span>
+                  </div>
+                )}
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[rgba(186,214,247,0.04)] text-[#9da7ba] border-b border-[rgba(186,215,247,0.12)]">
+                    <tr>
+                      <th className="p-3 font-eyebrow text-[10px]">Model Candidate</th>
+                      <th className="p-3 font-eyebrow text-[10px]">Precision</th>
+                      <th className="p-3 font-eyebrow text-[10px]">Recall</th>
+                      <th className="p-3 font-eyebrow text-[10px]">F1-Score</th>
+                      <th className="p-3 font-eyebrow text-[10px]">ROC-AUC</th>
+                      <th className="p-3 font-eyebrow text-[10px]">PR-AUC</th>
+                      <th className="p-3 font-eyebrow text-[10px]">Threshold</th>
+                      <th className="p-3 font-eyebrow text-[10px] text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[rgba(186,215,247,0.08)]">
+                    {Object.entries(modelComparison.models).map(([key, m]: [string, any]) => {
+                      const isBest = modelComparison.best_model === key;
+                      const isXGB = key === "XGBoost";
+                      return (
+                        <tr
+                          key={key}
+                          className={`hover:bg-[rgba(186,214,247,0.06)] transition-colors ${
+                            isBest ? "bg-indigo-950/20" : ""
+                          }`}
+                        >
+                          <td className="p-3 font-medium text-[#d8ecf8]">
+                            <div className="flex items-center space-x-2">
+                              <span>{m.model_name || key}</span>
+                              {isXGB && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-violet-950/80 border border-violet-700/60 text-violet-300">
+                                  Base Model (Tuned)
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-3 font-mono text-[#c7d3ea]">
+                            {(m.precision * 100).toFixed(2)}%
+                          </td>
+                          <td className="p-3 font-mono text-[#c7d3ea]">
+                            {(m.recall * 100).toFixed(1)}%
+                          </td>
+                          <td className="p-3 font-mono text-[#c7d3ea]">
+                            {m.f1_score?.toFixed(4) ?? "0.0000"}
+                          </td>
+                          <td className="p-3 font-mono text-[#c7d3ea]">
+                            {m.roc_auc?.toFixed(4) ?? "0.0000"}
+                          </td>
+                          <td className="p-3 font-mono font-bold text-[#b6d9fc]">
+                            {m.pr_auc?.toFixed(4) ?? "0.0000"}
+                          </td>
+                          <td className="p-3 font-mono text-[#9da7ba]">
+                            {m.threshold !== undefined ? Number(m.threshold).toFixed(4) : "0.5000"}
+                          </td>
+                          <td className="p-3 text-right">
+                            {isBest ? (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-900/60 border border-indigo-700 text-indigo-300">
+                                Deployed
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-gray-900/40 border border-gray-700/60 text-gray-400">
+                                Candidate
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="p-3 rounded-lg bg-[rgba(5,6,15,0.7)] border border-[rgba(186,215,247,0.1)] text-[11px] text-[#9da7ba] flex items-start space-x-2">
+                <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-semibold text-gray-300">AML Operational Alert Fatigue:</span>
+                  {" "}Extreme class imbalance (0.0074% positive prevalence) means high ROC-AUC can mask hundreds of false alarms. Model selection prioritizes PR-AUC and tuned decision thresholds to keep investigator queue manageable.
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right 1/3: Charts */}

@@ -6,6 +6,7 @@ pandas
 numpy
 networkx
 scikit-learn
+xgboost
 joblib
 httpx
 passlib[bcrypt]

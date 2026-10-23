@@ -2,7 +2,7 @@
 GraphGuard Models & Evaluation API Routes
 =========================================
 Exposes trained model performance metrics, comparison between Random Forest,
-AdaBoost, and GraphSAGE, feature importances, and confusion matrices.
+AdaBoost, XGBoost, and GraphSAGE, feature importances, and confusion matrices.
 """
 
 import os
@@ -50,11 +50,28 @@ def get_model_comparison():
 
     return {
         "status": data.get("status", "TRAINED"),
-        "best_model": data.get("best_model"),
-        "best_model_display": data.get("best_model_display") or ("None" if not data.get("best_model") else "Random Forest"),
+        "base_model": data.get("base_model", "XGBoost"),
+        "best_model": data.get("best_model", "XGBoost"),
+        "best_model_display": data.get("best_model_display") or ("None" if not data.get("best_model") else "XGBoost"),
         "models": data.get("models_comparison", {}),
         "diagnostics": data.get("diagnostics", {}),
     }
+
+
+@router.get("/base")
+def get_base_model():
+    """
+    Returns detailed metrics, hyper-parameters, and threshold tuning
+    for the primary base model (XGBoost).
+    """
+    xgb_metrics_path = settings.ML_ARTIFACTS_DIR / "xgboost_metrics.json"
+    if xgb_metrics_path.exists():
+        try:
+            with open(xgb_metrics_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to read XGBoost metrics: {str(e)}")
+    return get_model_metrics()
 
 
 @router.get("/features")
@@ -65,3 +82,23 @@ def get_feature_schema():
         with open(schema_path, "r", encoding="utf-8") as f:
             return {"features": json.load(f)}
     return {"features": []}
+
+
+@router.get("/xgboost")
+def get_xgboost_metrics():
+    """
+    Returns detailed training metadata, scale_pos_weight, validation threshold tuning,
+    and operational false-positive burden analysis for the XGBoost model.
+    """
+    xgb_metrics_path = settings.ML_ARTIFACTS_DIR / "xgboost_metrics.json"
+    if not xgb_metrics_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="XGBoost model metrics not found. Train the model first.",
+        )
+    try:
+        with open(xgb_metrics_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read XGBoost metrics: {str(e)}")
+

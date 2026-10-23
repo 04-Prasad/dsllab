@@ -38,6 +38,7 @@ from ml.src.features import extract_features
 from ml.src.graph_builder import build_networkx_graph
 from ml.src.train_baseline import (
     train_baseline_model,
+    train_base_model,
     train_all_models,
     FEATURE_COLS,
     InsufficientLabelsError,
@@ -185,16 +186,26 @@ class TestIBMAPIPipeline(unittest.TestCase):
         _, _, ada_metrics = train_adaboost_model(feat_df, artifacts_dir="ml/artifacts_test")
         self.assertIn("f1_score", ada_metrics)
 
-        # 3. GraphSAGE
+        # 3. XGBoost
+        from ml.src.train_xgboost import train_xgboost_model
+        _, _, xgb_metrics = train_xgboost_model(feat_df, artifacts_dir="ml/artifacts_test")
+        self.assertIn("precision", xgb_metrics)
+        self.assertIn("recall", xgb_metrics)
+        self.assertIn("f1_score", xgb_metrics)
+        self.assertIn("pr_auc", xgb_metrics)
+        self.assertIn("threshold", xgb_metrics)
+
+        # 4. GraphSAGE
         _, gnn_metrics = train_gnn_model(feat_df, G, artifacts_dir="ml/artifacts_test", epochs=5)
         self.assertIn("f1_score", gnn_metrics)
 
-        # 4. Multi-model comparison
+        # 5. Multi-model comparison
         all_metrics = train_all_models(feat_df, G, artifacts_dir="ml/artifacts_test")
         self.assertIn("best_model", all_metrics)
         self.assertIn("models_comparison", all_metrics)
         self.assertIn("RandomForest", all_metrics["models_comparison"])
         self.assertIn("AdaBoost", all_metrics["models_comparison"])
+        self.assertIn("XGBoost", all_metrics["models_comparison"])
         self.assertIn("GraphSAGE", all_metrics["models_comparison"])
 
     def test_05_ews_and_risk_fusion(self):
@@ -372,7 +383,7 @@ class TestIBMAPIPipeline(unittest.TestCase):
         res = train_all_models(df, G=G, artifacts_dir="ml/artifacts_test", allow_insufficient_labels=False, min_required=8)
         self.assertEqual(res["status"], "TRAINED")
         self.assertIsNotNone(res["best_model"])
-        self.assertIn(res["best_model"], ["RandomForest", "AdaBoost", "GraphSAGE"])
+        self.assertIn(res["best_model"], ["RandomForest", "AdaBoost", "XGBoost", "GraphSAGE"])
 
     def test_14_correct_handling_of_missing_model_results(self):
         """7. Correct handling of missing model results: get_ml_predictions returns empty, risk fusion uses fallback."""
@@ -453,6 +464,151 @@ class TestIBMAPIPipeline(unittest.TestCase):
         self.assertEqual(db.query(Transaction).count(), 0)
         db.close()
 
+    def test_18_xgboost_training_artifacts_and_inference(self):
+        """11. XGBoost-specific verification: training, artifacts, threshold tuning, and inference."""
+        import xgboost as xgb
+        import json
+        import joblib
+        from ml.src.train_xgboost import train_xgboost_model, _compute_scale_pos_weight
+
+        # 1. Verify scale_pos_weight calculation strictly on training labels
+        y_synthetic_train = np.array([1, 1, 0, 0, 0, 0, 0, 0])
+        spw = _compute_scale_pos_weight(y_synthetic_train)
+        self.assertEqual(spw, 6.0 / 2.0)
+
+        # 2. Train XGBoost on mock data
+        np.random.seed(42)
+        mock_features = []
+        for i in range(50):
+            mock_features.append({
+                "account_id": f"ACC_{i:03d}",
+                "label": 1 if i < 10 else 0,
+                **{col: float(np.random.uniform(1, 100)) for col in FEATURE_COLS},
+            })
+        df = pd.DataFrame(mock_features)
+
+        test_art_dir = "ml/artifacts_test_xgb"
+        os.makedirs(test_art_dir, exist_ok=True)
+        try:
+            model, scaler, metrics = train_xgboost_model(
+                df,
+                artifacts_dir=test_art_dir,
+                min_required=8,
+            )
+
+            # 3. Check metrics structure
+            self.assertEqual(metrics["status"], "TRAINED")
+            self.assertEqual(metrics["model_type"], "XGBClassifier")
+            self.assertIn("xgboost_version", metrics)
+            self.assertIn("threshold", metrics)
+            self.assertGreater(metrics["threshold"], 0.0)
+            self.assertLessEqual(metrics["threshold"], 1.0)
+            self.assertIn("threshold_tuning", metrics)
+            self.assertIn("metrics_at_default_threshold", metrics)
+            self.assertIn("confusion_matrix", metrics)
+            self.assertIn("operational_analysis", metrics)
+            self.assertIn("false_positive_burden", metrics["operational_analysis"])
+
+            # 4. Check saved artifacts existence and loadability
+            json_path = os.path.join(test_art_dir, "xgboost_model.json")
+            pkl_path = os.path.join(test_art_dir, "xgboost_model.pkl")
+            scaler_path = os.path.join(test_art_dir, "xgboost_scaler.pkl")
+            metrics_path = os.path.join(test_art_dir, "xgboost_metrics.json")
+
+            self.assertTrue(os.path.exists(json_path), "XGBoost JSON model should exist")
+            self.assertTrue(os.path.exists(pkl_path), "XGBoost PKL model should exist")
+            self.assertTrue(os.path.exists(scaler_path), "XGBoost scaler should exist")
+            self.assertTrue(os.path.exists(metrics_path), "XGBoost metrics should exist")
+
+            # Load model via native XGBoost API
+            loaded_booster = xgb.Booster()
+            loaded_booster.load_model(json_path)
+            self.assertIsNotNone(loaded_booster)
+
+            # Load model via joblib
+            loaded_pkl = joblib.load(pkl_path)
+            self.assertIsNotNone(loaded_pkl)
+
+            # 5. Check inference via get_ml_predictions with selected_model="XGBoost"
+            # Write a metrics.json designating XGBoost as best_model
+            with open(os.path.join(test_art_dir, "metrics.json"), "w") as f:
+                json.dump({"status": "TRAINED", "best_model": "XGBoost"}, f)
+
+            preds = get_ml_predictions(df, artifacts_dir=test_art_dir)
+            self.assertEqual(len(preds), 50)
+            for acc_id, score in preds.items():
+                self.assertGreaterEqual(score, 0.0)
+                self.assertLessEqual(score, 1.0)
+        finally:
+            import shutil
+            shutil.rmtree(test_art_dir, ignore_errors=True)
+
+    def test_19_xgboost_base_model(self):
+        """12. Base model verification: XGBoost designated as primary base model."""
+        test_art_dir = "ml/artifacts_test_base"
+        os.makedirs(test_art_dir, exist_ok=True)
+        try:
+            n = 50
+            np.random.seed(42)
+            mock_features = []
+            for i in range(n):
+                lbl = 1 if i < 10 else 0
+                row = {"account_id": f"ACC_{i:03d}", "label": lbl}
+                for c in FEATURE_COLS:
+                    row[c] = np.random.uniform(5.0, 10.0) if lbl == 1 else np.random.uniform(0.0, 2.0)
+                mock_features.append(row)
+            df = pd.DataFrame(mock_features)
+
+            # 1. Test train_base_model trains XGBoost
+            model, scaler, metrics = train_base_model(df, artifacts_dir=test_art_dir)
+            self.assertEqual(metrics["model_type"], "XGBClassifier")
+            self.assertTrue(os.path.exists(os.path.join(test_art_dir, "xgboost_model.json")))
+            self.assertTrue(os.path.exists(os.path.join(test_art_dir, "scaler.pkl")))
+
+            # 2. Test train_baseline_model with model_type="xgboost"
+            m2, s2, met2 = train_baseline_model(df, artifacts_dir=test_art_dir, model_type="xgboost")
+            self.assertEqual(met2["model_type"], "XGBClassifier")
+
+            # 3. Test train_all_models designates XGBoost as base_model and best_model
+            all_metrics = train_all_models(df, artifacts_dir=test_art_dir, base_model="XGBoost")
+            self.assertEqual(all_metrics["base_model"], "XGBoost")
+            self.assertEqual(all_metrics["best_model"], "XGBoost")
+
+            # 4. Test inference prioritizing XGBoost base model
+            preds = get_ml_predictions(df, artifacts_dir=test_art_dir)
+            self.assertEqual(len(preds), 50)
+            for acc_id, score in preds.items():
+                self.assertGreaterEqual(score, 0.0)
+                self.assertLessEqual(score, 1.0)
+
+            # 5. Test API endpoints with base_model
+            from fastapi.testclient import TestClient
+            from backend.app.main import app
+            from backend.app.core.security import create_access_token
+            from backend.app.models.models import User
+            from backend.app.db.database import SessionLocal
+            db = SessionLocal()
+            try:
+                user = db.query(User).first()
+                if user:
+                    c = TestClient(app)
+                    token = create_access_token(str(user.id))
+                    headers = {"Authorization": f"Bearer {token}"}
+                    resp = c.get("/api/v1/models/base", headers=headers)
+                    self.assertEqual(resp.status_code, 200)
+                    self.assertIn("model_type", resp.json())
+
+                    comp = c.get("/api/v1/models/comparison", headers=headers)
+                    self.assertEqual(comp.status_code, 200)
+                    self.assertEqual(comp.json().get("base_model"), "XGBoost")
+                    self.assertEqual(comp.json().get("best_model"), "XGBoost")
+            finally:
+                db.close()
+        finally:
+            import shutil
+            shutil.rmtree(test_art_dir, ignore_errors=True)
+
 
 if __name__ == "__main__":
     unittest.main()
+

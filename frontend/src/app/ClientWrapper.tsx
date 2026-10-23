@@ -4,12 +4,12 @@ import React from "react";
 import { usePathname } from "next/navigation";
 import { AuthProvider, useAuth } from "@/lib/AuthContext";
 import Link from "next/link";
-import { 
-  ShieldAlert, 
-  LayoutDashboard, 
-  Users, 
-  AlertTriangle, 
-  Network, 
+import {
+  ShieldAlert,
+  LayoutDashboard,
+  Users,
+  AlertTriangle,
+  Network,
   Zap,
   Activity,
   LogOut
@@ -22,7 +22,7 @@ function MainLayout({ children }: { children: React.ReactNode }) {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#05060f] flex items-center justify-center">
-         <div className="w-8 h-8 border-2 border-[#663af3]/30 border-t-[#663af3] rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-[#663af3]/30 border-t-[#663af3] rounded-full animate-spin" />
       </div>
     );
   }
@@ -47,9 +47,6 @@ function MainLayout({ children }: { children: React.ReactNode }) {
             <span className="text-xl font-display font-medium tracking-tight text-skywash">
               GRAPHGUARD
             </span>
-            <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-[rgba(199,211,234,0.12)] text-[#c7d3ea] border border-[rgba(186,215,247,0.12)]">
-              PROTOTYPE v1.0
-            </span>
           </div>
         </div>
 
@@ -59,12 +56,12 @@ function MainLayout({ children }: { children: React.ReactNode }) {
             <span className="font-eyebrow text-[11px] text-[#c7d3ea] uppercase">{user.role}</span>
           </div>
           <div className="flex items-center space-x-3">
-             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#663af3] to-[#027dea] flex items-center justify-center font-bold text-xs text-white shadow-[0_0_12px_rgba(102,58,243,0.4)] border border-[rgba(186,215,247,0.2)]">
-               {user.full_name.charAt(0).toUpperCase()}
-             </div>
-             <button onClick={logout} className="text-[#9da7ba] hover:text-white transition-colors" title="Sign out">
-                <LogOut className="w-4 h-4" />
-             </button>
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#663af3] to-[#027dea] flex items-center justify-center font-bold text-xs text-white shadow-[0_0_12px_rgba(102,58,243,0.4)] border border-[rgba(186,215,247,0.2)]">
+              {user.full_name.charAt(0).toUpperCase()}
+            </div>
+            <button onClick={logout} className="text-[#9da7ba] hover:text-white transition-colors" title="Sign out">
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </header>
@@ -76,7 +73,7 @@ function MainLayout({ children }: { children: React.ReactNode }) {
             <div className="px-3 py-2 text-[11px] font-eyebrow text-[#9da7ba]">
               Monitoring
             </div>
-            
+
             <Link
               href="/dashboard"
               className="flex items-center space-x-3 px-3.5 py-2.5 rounded-full text-sm font-medium text-[#c7d3ea] hover:text-[#ffffff] hover:bg-[rgba(186,214,247,0.08)] border border-transparent hover:border-[rgba(186,215,247,0.12)] transition-all group"

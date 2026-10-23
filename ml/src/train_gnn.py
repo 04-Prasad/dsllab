@@ -223,16 +223,16 @@ def get_ml_predictions(
 ) -> dict:
     """
     Returns account_id -> ml_score (0.0 to 1.0) dictionary.
-    Prioritizes GraphSAGE or Random Forest.
+    Prioritizes XGBoost (base model) or GraphSAGE.
     """
     metrics_path = os.path.join(artifacts_dir, "metrics.json")
-    selected_model = "GraphSAGE"
+    selected_model = "XGBoost"
     status = "TRAINED"
     if os.path.exists(metrics_path):
         try:
             with open(metrics_path, encoding="utf-8") as f:
                 metrics_data = json.load(f)
-                selected_model = metrics_data.get("best_model", selected_model)
+                selected_model = metrics_data.get("best_model", metrics_data.get("base_model", selected_model))
                 status = metrics_data.get("status", "TRAINED")
         except Exception:
             pass
@@ -244,70 +244,140 @@ def get_ml_predictions(
     gnn_path = os.path.join(artifacts_dir, "gnn_model.pt")
     rf_path = os.path.join(artifacts_dir, "rf_model.pkl")
     ada_path = os.path.join(artifacts_dir, "adaboost_model.pkl")
+    xgb_path = os.path.join(artifacts_dir, "xgboost_model.pkl")
     gnn_scaler_path = os.path.join(artifacts_dir, "gnn_scaler.pkl")
     rf_scaler_path = os.path.join(artifacts_dir, "rf_scaler.pkl")
     ada_scaler_path = os.path.join(artifacts_dir, "adaboost_scaler.pkl")
+    xgb_scaler_path = os.path.join(artifacts_dir, "xgboost_scaler.pkl")
+    xgb_metrics_path = os.path.join(artifacts_dir, "xgboost_metrics.json")
 
     predictions = {}
     nodes = list(features_df["account_id"].astype(str))
 
-    # Try GraphSAGE first if model exists and graph provided
-    if selected_model == "GraphSAGE" and os.path.exists(gnn_path) and os.path.exists(gnn_scaler_path) and G is not None:
-        try:
-            with open(os.path.join(artifacts_dir, "gnn_node_order.json"), encoding="utf-8") as f:
-                nodes = json.load(f)
-            by_account = features_df.copy()
-            by_account["account_id"] = by_account["account_id"].astype(str)
-            if by_account["account_id"].duplicated().any() or set(nodes) != set(by_account["account_id"]):
-                raise ValueError("GraphSAGE inference account IDs do not match the trained node mapping.")
-            X = by_account.set_index("account_id").loc[nodes, FEATURE_COLS].fillna(0)
-            scaler = joblib.load(gnn_scaler_path)
-            X_scaled = scaler.transform(X)
-            x_tensor = torch.tensor(X_scaled, dtype=torch.float32)
-            adj_norm = build_normalized_adjacency(nodes, G)
+    # Inference helpers for each model type
+    def _predict_gnn():
+        if os.path.exists(gnn_path) and os.path.exists(gnn_scaler_path) and G is not None:
+            try:
+                with open(os.path.join(artifacts_dir, "gnn_node_order.json"), encoding="utf-8") as f:
+                    gnn_nodes = json.load(f)
+                by_account = features_df.copy()
+                by_account["account_id"] = by_account["account_id"].astype(str)
+                if by_account["account_id"].duplicated().any() or set(gnn_nodes) != set(by_account["account_id"]):
+                    raise ValueError("GraphSAGE inference account IDs do not match the trained node mapping.")
+                X = by_account.set_index("account_id").loc[gnn_nodes, FEATURE_COLS].fillna(0)
+                scaler = joblib.load(gnn_scaler_path)
+                X_scaled = scaler.transform(X)
+                x_tensor = torch.tensor(X_scaled, dtype=torch.float32)
+                adj_norm = build_normalized_adjacency(gnn_nodes, G)
 
-            model = GraphSAGEModel(in_channels=X_scaled.shape[1], hidden_channels=32, out_channels=1)
-            model.load_state_dict(torch.load(gnn_path, map_location="cpu"))
-            model.eval()
+                model = GraphSAGEModel(in_channels=X_scaled.shape[1], hidden_channels=32, out_channels=1)
+                model.load_state_dict(torch.load(gnn_path, map_location="cpu"))
+                model.eval()
 
-            with torch.no_grad():
-                scores = model(x_tensor, adj_norm).numpy()
+                with torch.no_grad():
+                    scores = model(x_tensor, adj_norm).numpy()
 
-            for acc_id, score in zip(nodes, scores):
-                predictions[acc_id] = round(float(np.clip(score, 0.0, 1.0)), 4)
-            return predictions
-        except Exception as e:
-            logger.warning("[GNN] GraphSAGE inference fallback to RF: %s", e)
+                res = {}
+                for acc_id, score in zip(gnn_nodes, scores):
+                    res[acc_id] = round(float(np.clip(score, 0.0, 1.0)), 4)
+                return res
+            except Exception as e:
+                logger.warning("[GNN] GraphSAGE inference fallback: %s", e)
+                return None
+        return None
 
-    # Fallback to Random Forest
-    if selected_model != "AdaBoost" and os.path.exists(rf_path) and os.path.exists(rf_scaler_path):
-        rf_model = joblib.load(rf_path)
-        scaler = joblib.load(rf_scaler_path)
-        X = features_df[FEATURE_COLS].fillna(0)
-        X_scaled = scaler.transform(X)
+    def _predict_rf():
+        if os.path.exists(rf_path) and os.path.exists(rf_scaler_path):
+            try:
+                rf_model = joblib.load(rf_path)
+                scaler = joblib.load(rf_scaler_path)
+                X = features_df[FEATURE_COLS].fillna(0)
+                X_scaled = scaler.transform(X)
+                if hasattr(rf_model, "predict_proba") and len(rf_model.classes_) > 1 and 1 in rf_model.classes_:
+                    pos_idx = list(rf_model.classes_).index(1)
+                    scores = rf_model.predict_proba(X_scaled)[:, pos_idx]
+                else:
+                    scores = rf_model.predict(X_scaled)
+                res = {}
+                for acc_id, score in zip(nodes, scores):
+                    res[acc_id] = round(float(score), 4)
+                return res
+            except Exception as e:
+                logger.warning("[ML INFERENCE] Random Forest inference failed: %s", e)
+                return None
+        return None
 
-        if hasattr(rf_model, "predict_proba") and len(rf_model.classes_) > 1 and 1 in rf_model.classes_:
-            pos_idx = list(rf_model.classes_).index(1)
-            scores = rf_model.predict_proba(X_scaled)[:, pos_idx]
-        else:
-            scores = rf_model.predict(X_scaled)
+    def _predict_adaboost():
+        if os.path.exists(ada_path) and os.path.exists(ada_scaler_path):
+            try:
+                ada_model = joblib.load(ada_path)
+                scaler = joblib.load(ada_scaler_path)
+                X = features_df[FEATURE_COLS].fillna(0)
+                if hasattr(ada_model, "predict_proba") and len(ada_model.classes_) > 1 and 1 in ada_model.classes_:
+                    pos_idx = list(ada_model.classes_).index(1)
+                    scores = ada_model.predict_proba(scaler.transform(X))[:, pos_idx]
+                else:
+                    scores = ada_model.predict(scaler.transform(X))
+                res = {}
+                for acc_id, score in zip(nodes, scores):
+                    res[acc_id] = round(float(score), 4)
+                return res
+            except Exception as e:
+                logger.warning("[ML INFERENCE] AdaBoost inference failed: %s", e)
+                return None
+        return None
 
-        for acc_id, score in zip(nodes, scores):
-            predictions[acc_id] = round(float(score), 4)
-        return predictions
+    def _predict_xgboost():
+        if (os.path.exists(xgb_path) or os.path.exists(os.path.join(artifacts_dir, "xgboost_model.json"))) and os.path.exists(xgb_scaler_path):
+            try:
+                if os.path.exists(xgb_path):
+                    xgb_model = joblib.load(xgb_path)
+                else:
+                    import xgboost as xgb_lib
+                    xgb_model = xgb_lib.XGBClassifier()
+                    xgb_model.load_model(os.path.join(artifacts_dir, "xgboost_model.json"))
 
-    if os.path.exists(ada_path) and os.path.exists(ada_scaler_path):
-        ada_model = joblib.load(ada_path)
-        scaler = joblib.load(ada_scaler_path)
-        X = features_df[FEATURE_COLS].fillna(0)
-        if hasattr(ada_model, "predict_proba") and len(ada_model.classes_) > 1 and 1 in ada_model.classes_:
-            pos_idx = list(ada_model.classes_).index(1)
-            scores = ada_model.predict_proba(scaler.transform(X))[:, pos_idx]
-        else:
-            scores = ada_model.predict(scaler.transform(X))
-        for acc_id, score in zip(nodes, scores):
-            predictions[acc_id] = round(float(score), 4)
-        return predictions
+                scaler = joblib.load(xgb_scaler_path)
+                X = features_df[FEATURE_COLS].fillna(0)
+                X_scaled = scaler.transform(X)
+
+                if hasattr(xgb_model, "predict_proba"):
+                    scores = xgb_model.predict_proba(X_scaled)[:, 1]
+                else:
+                    scores = xgb_model.predict(X_scaled)
+
+                res = {}
+                for acc_id, score in zip(nodes, scores):
+                    res[acc_id] = round(float(score), 4)
+                return res
+            except Exception as e:
+                logger.warning("[ML INFERENCE] XGBoost inference failed: %s", e)
+                return None
+        return None
+
+    # 1. Attempt inference with the selected (best/base) model
+    if selected_model == "XGBoost":
+        res = _predict_xgboost()
+        if res is not None:
+            return res
+    elif selected_model == "GraphSAGE":
+        res = _predict_gnn()
+        if res is not None:
+            return res
+    elif selected_model == "AdaBoost":
+        res = _predict_adaboost()
+        if res is not None:
+            return res
+    elif selected_model == "RandomForest":
+        res = _predict_rf()
+        if res is not None:
+            return res
+
+    # 2. Fallback chain: XGBoost (base) -> GraphSAGE -> AdaBoost -> Random Forest
+    for fallback_fn in (_predict_xgboost, _predict_gnn, _predict_adaboost, _predict_rf):
+        res = fallback_fn()
+        if res is not None:
+            return res
 
     logger.info("[ML INFERENCE] No trained ML model artifacts available; returning empty predictions map.")
     return {}

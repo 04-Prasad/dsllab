@@ -1,8 +1,8 @@
 """
 GraphGuard Model Training & Evaluation Engine
 =============================================
-Trains Random Forest, AdaBoost, and GraphSAGE models.
-Evaluates Precision, Recall, F1-Score, ROC-AUC, and Confusion Matrices.
+Trains Random Forest, AdaBoost, XGBoost, and GraphSAGE models.
+Evaluates Precision, Recall, F1-Score, ROC-AUC, PR-AUC, and Confusion Matrices.
 Selects the best performing model based on experimental results.
 """
 
@@ -60,15 +60,35 @@ FEATURE_COLS = [
 ]
 
 
-def train_baseline_model(
+def train_base_model(
     features_df: pd.DataFrame,
     artifacts_dir: str = "ml/artifacts",
     min_required: int = 8,
 ) -> tuple:
     """
-    Trains Random Forest classifier on extracted account features.
+    Trains the designated production base model (XGBoost) on extracted features.
     Returns (model, scaler, metrics_dict).
     """
+    from ml.src.train_xgboost import train_xgboost_model
+    model, scaler, metrics = train_xgboost_model(features_df, artifacts_dir, min_required=min_required)
+    joblib.dump(scaler, os.path.join(artifacts_dir, "scaler.pkl"))
+    return model, scaler, metrics
+
+
+def train_baseline_model(
+    features_df: pd.DataFrame,
+    artifacts_dir: str = "ml/artifacts",
+    min_required: int = 8,
+    model_type: str = "rf",
+) -> tuple:
+    """
+    Trains baseline classifier on extracted account features.
+    Supports model_type="xgboost" for XGBoost base model or model_type="rf" (default) for Random Forest.
+    Returns (model, scaler, metrics_dict).
+    """
+    if model_type.lower() in ("xgboost", "xgb"):
+        return train_base_model(features_df, artifacts_dir, min_required=min_required)
+
     os.makedirs(artifacts_dir, exist_ok=True)
     logger.info("[MODEL] Training Random Forest on %d accounts...", len(features_df))
 
@@ -160,9 +180,10 @@ def train_all_models(
     artifacts_dir: str = "ml/artifacts",
     allow_insufficient_labels: bool = False,
     min_required: int = 8,
+    base_model: str = "XGBoost",
 ) -> dict:
     """
-    Trains and compares Random Forest, AdaBoost, and GraphSAGE.
+    Trains and compares Random Forest, AdaBoost, XGBoost, and GraphSAGE.
     Determines the best model dynamically based on PR-AUC / F1-score / Recall.
     Saves comprehensive metrics to ml/artifacts/metrics.json.
 
@@ -227,11 +248,12 @@ def train_all_models(
             json.dump(skipped_metrics, f, indent=2)
         return skipped_metrics
 
-    logger.info("[ML PIPELINE] Training all models (RF, AdaBoost, GraphSAGE)...")
+    logger.info("[ML PIPELINE] Training all models (RF, AdaBoost, XGBoost, GraphSAGE)...")
 
     models_comparison = {}
     rf_metrics = {}
     ada_metrics = {}
+    xgb_metrics = {}
     gnn_metrics = {}
 
     # 1. Random Forest
@@ -267,7 +289,25 @@ def train_all_models(
         logger.error("[ML PIPELINE] AdaBoost training error: %s", e)
         ada_metrics = {"error": str(e)}
 
-    # 3. GraphSAGE
+    # 3. XGBoost
+    try:
+        from ml.src.train_xgboost import train_xgboost_model
+        _, _, xgb_metrics = train_xgboost_model(features_df, artifacts_dir, min_required=min_required)
+        models_comparison["XGBoost"] = {
+            "model_name": "XGBoost",
+            "precision": xgb_metrics.get("precision", 0.0),
+            "recall": xgb_metrics.get("recall", 0.0),
+            "f1_score": xgb_metrics.get("f1_score", 0.0),
+            "roc_auc": xgb_metrics.get("roc_auc", 0.0),
+            "pr_auc": xgb_metrics.get("pr_auc", 0.0),
+            "threshold": xgb_metrics.get("threshold", 0.5),
+            "confusion_matrix": xgb_metrics.get("confusion_matrix", []),
+        }
+    except Exception as e:
+        logger.error("[ML PIPELINE] XGBoost training error: %s", e)
+        xgb_metrics = {"error": str(e)}
+
+    # 4. GraphSAGE
     if G is not None:
         try:
             from ml.src.train_gnn import train_gnn_model
@@ -289,20 +329,31 @@ def train_all_models(
     if not models_comparison:
         raise RuntimeError("All models failed training and evaluation.")
 
-    # PR-AUC is the primary selection metric for rare laundering; F1 and recall
-    # are tie breakers at the fixed 0.5 threshold.
-    best_name = max(
-        models_comparison.keys(),
-        key=lambda m: (
-            models_comparison[m].get("pr_auc", 0.0),
-            models_comparison[m].get("f1_score", 0.0),
-            models_comparison[m].get("recall", 0.0),
+    # Designated base model selection:
+    if base_model and base_model in models_comparison and "error" not in models_comparison[base_model]:
+        best_name = base_model
+    else:
+        # PR-AUC is the primary selection metric for rare laundering; F1 and recall
+        # are tie breakers at the fixed 0.5 threshold.
+        best_name = max(
+            models_comparison.keys(),
+            key=lambda m: (
+                models_comparison[m].get("pr_auc", 0.0),
+                models_comparison[m].get("f1_score", 0.0),
+                models_comparison[m].get("recall", 0.0),
+            )
         )
-    )
     best_model_info = models_comparison[best_name]
+
+    feat_importances = (
+        xgb_metrics.get("feature_importances", {})
+        if (best_name == "XGBoost" and "feature_importances" in xgb_metrics)
+        else rf_metrics.get("feature_importances", {})
+    )
 
     consolidated_metrics = {
         "status": "TRAINED",
+        "base_model": base_model or best_name,
         "best_model": best_name,
         "best_model_display": best_model_info["model_name"],
         "model_type": best_model_info["model_name"],
@@ -313,10 +364,14 @@ def train_all_models(
         "pr_auc": best_model_info.get("pr_auc", 0.0),
         "confusion_matrix": best_model_info["confusion_matrix"],
         "models_comparison": models_comparison,
-        "feature_importances": rf_metrics.get("feature_importances", {}),
+        "feature_importances": feat_importances,
         "total_accounts_evaluated": len(features_df),
         "dataset_type": "IBM AML",
-        "selection_policy": "highest PR-AUC, then F1, then recall at threshold 0.5",
+        "selection_policy": (
+            f"Designated base model: {best_name} (with scale_pos_weight & precision-recall threshold tuning for AML class imbalance)"
+            if best_name == "XGBoost"
+            else "highest PR-AUC, then F1, then recall at threshold 0.5"
+        ),
         "diagnostics": {
             "total_accounts": total_count,
             "positive_accounts": pos_count,
@@ -330,8 +385,10 @@ def train_all_models(
         json.dump(consolidated_metrics, f, indent=2)
 
     logger.info(
-        "[ML PIPELINE] Comparison complete. Best Model: %s (PR-AUC: %.4f, F1: %.4f, Recall: %.4f, Precision: %.4f)",
-        best_name, best_model_info.get("pr_auc", 0.0), best_model_info["f1_score"], best_model_info["recall"], best_model_info["precision"]
+        "[ML PIPELINE] Comparison complete. Best Model: %s (PR-AUC: %.4f, F1: %.4f, Recall: %.4f, Precision: %.4f, Threshold: %s)",
+        best_name, best_model_info.get("pr_auc", 0.0), best_model_info["f1_score"],
+        best_model_info["recall"], best_model_info["precision"],
+        best_model_info.get("threshold", 0.5),
     )
     return consolidated_metrics
 
