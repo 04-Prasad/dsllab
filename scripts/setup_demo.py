@@ -14,9 +14,9 @@ import io
 
 # Force UTF-8 stdout to avoid Windows cp1252 encoding errors
 try:
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 except AttributeError:
-    pass  # Already wrapped or not a buffered stream
+    pass
 
 # Ensure project root is on path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -125,13 +125,17 @@ def setup_demo():
     print(f"   -> Features computed for {len(features_df):,} accounts.")
 
     # ── Step 6: Train ML / GNN models ─────────────────────────────────────────
-    step(6, 9, "Training Machine Learning and GNN models")
-    from ml.src.train_baseline import train_baseline_model
+    step(6, 9, "Training Machine Learning (XGBoost Base, RF) and GNN models")
+    from ml.src.train_baseline import train_baseline_model, train_base_model
     from ml.src.train_gnn import train_gnn_model, get_ml_predictions
+    try:
+        train_base_model(features_df)
+    except Exception as e:
+        print(f"   ^  XGBoost base model training error (non-fatal): {e}")
     try:
         train_baseline_model(features_df)
     except Exception as e:
-        print(f"   ^  Baseline model training error (non-fatal): {e}")
+        print(f"   ^  Random Forest model training error (non-fatal): {e}")
     try:
         train_gnn_model(features_df, G)
     except Exception as e:

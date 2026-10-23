@@ -6,7 +6,7 @@ End-to-end pipeline execution for the IBM Transactions for AML dataset:
 2. Preprocessing & Parquet Caching
 3. Directed Graph Construction (NetworkX)
 4. Account Feature Engineering (22 Behavioral & Graph Features)
-5. Multi-Model Training & Evaluation (Random Forest vs AdaBoost vs GraphSAGE)
+5. Multi-Model Training & Evaluation (Random Forest vs AdaBoost vs XGBoost vs GraphSAGE)
 6. Dynamic Best Model Selection & Metrics Persistence
 7. Deterministic Early Warning System (EWS) Rules Engine
 8. Risk Score Fusion (0-100) & Automated Alert Generation
@@ -27,7 +27,7 @@ from pathlib import Path
 
 # Force UTF-8 stdout
 try:
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 except AttributeError:
     pass
 
@@ -182,7 +182,7 @@ def setup_ibm_pipeline(
     print(f"   -> Features computed and saved for {len(features_df):,} accounts.")
 
     # ── Step 6: Multi-Model Training & Evaluation ─────────────────────────────
-    step(6, 9, "Training & comparing ML models (Random Forest, AdaBoost, GraphSAGE)")
+    step(6, 9, "Training & comparing ML models (Random Forest, AdaBoost, XGBoost, GraphSAGE)")
     from ml.src.train_baseline import train_all_models, InsufficientLabelsError
     from ml.src.train_gnn import get_ml_predictions
 
@@ -252,7 +252,7 @@ def setup_ibm_pipeline(
 
     ml_active = (not training_skipped) and bool(ml_predictions)
     if ml_active:
-        print(f"   -> Risk Fusion Policy    : Active ML ({model_metrics.get('best_model_display')}) [50%] + EWS [35%] + Graph Topology [15%]")
+        print(f"   -> Risk Fusion Policy    : Active ML ({model_metrics.get('best_model_display', 'XGBoost')}) [50%] + EWS [35%] + Graph Topology [15%]")
     else:
         print("   -> Risk Fusion Policy    : Fallback mode (ML not evaluated) -> EWS [70%] + Graph Topology [30%]")
 
@@ -294,7 +294,7 @@ def setup_ibm_pipeline(
                 final_score=fusion["risk_score"],
                 risk_level=fusion["risk_level"],
                 reasons=fusion["reasons"],
-                model_version=f"{model_metrics.get('best_model', 'rf')}-v1" if ml_active else "none-ews-fallback",
+                model_version=f"{model_metrics.get('best_model', 'XGBoost')}-v1" if ml_active else "none-ews-fallback",
             )
         )
 

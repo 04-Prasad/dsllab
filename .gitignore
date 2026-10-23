@@ -12,6 +12,8 @@
 *.sqlite
 *.sqlite3
 graphguard.db
+graphguard.db*
+*.corrupt
 
 # Large Datasets & Raw / Processed Data
 data/*.csv
