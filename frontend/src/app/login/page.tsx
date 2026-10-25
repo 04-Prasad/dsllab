@@ -53,18 +53,18 @@ export default function LoginPage() {
       }
 
       const data = await res.json();
-      
+
       // Fetch user profile
       const userRes = await fetch(`${baseUrl}/api/auth/me`, {
         headers: {
           Authorization: `Bearer ${data.access_token}`
         }
       });
-      
+
       if (!userRes.ok) {
-         throw new Error("Failed to load user profile");
+        throw new Error("Failed to load user profile");
       }
-      
+
       const userData = await userRes.json();
       login(data.access_token, userData);
 
@@ -81,7 +81,7 @@ export default function LoginPage() {
         {/* Decorative background glow */}
         <div className="absolute -top-32 -left-32 w-64 h-64 bg-[#663af3] rounded-full blur-[120px] opacity-20 pointer-events-none" />
         <div className="absolute -bottom-32 -right-32 w-64 h-64 bg-[#027dea] rounded-full blur-[120px] opacity-20 pointer-events-none" />
-        
+
         <div className="relative z-10 flex flex-col items-center mb-8">
           <div className="w-14 h-14 rounded-full bg-[#663af3] flex items-center justify-center shadow-[0_0_24px_rgba(102,58,243,0.5)] border border-[rgba(186,215,247,0.2)] mb-4">
             <ShieldAlert className="w-8 h-8 text-white" />
@@ -145,31 +145,8 @@ export default function LoginPage() {
 
         {/* 1-Click Demo Accounts */}
         <div className="relative z-10 mt-6 pt-5 border-t border-[rgba(186,215,247,0.1)]">
-          <p className="text-[11px] font-eyebrow text-[#9da7ba] uppercase tracking-wider text-center mb-3">
-            Quick Fill Demo Roles
-          </p>
+
           <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={() => setDemoCredentials("admin@graphguard.ai", "admin1234")}
-              className="py-1.5 px-2 rounded-lg bg-[rgba(102,58,243,0.12)] border border-[rgba(102,58,243,0.3)] text-[11px] text-[#c7d3ea] hover:bg-[rgba(102,58,243,0.25)] hover:text-white transition-all text-center cursor-pointer"
-            >
-              👑 Admin
-            </button>
-            <button
-              type="button"
-              onClick={() => setDemoCredentials("investigator@graphguard.ai", "investigator123")}
-              className="py-1.5 px-2 rounded-lg bg-[rgba(2,125,234,0.12)] border border-[rgba(2,125,234,0.3)] text-[11px] text-[#c7d3ea] hover:bg-[rgba(2,125,234,0.25)] hover:text-white transition-all text-center cursor-pointer"
-            >
-              🔍 Investigator
-            </button>
-            <button
-              type="button"
-              onClick={() => setDemoCredentials("analyst@graphguard.ai", "analyst123")}
-              className="py-1.5 px-2 rounded-lg bg-[rgba(16,185,129,0.12)] border border-[rgba(16,185,129,0.3)] text-[11px] text-[#c7d3ea] hover:bg-[rgba(16,185,129,0.25)] hover:text-white transition-all text-center cursor-pointer"
-            >
-              📊 Analyst
-            </button>
           </div>
         </div>
       </div>
