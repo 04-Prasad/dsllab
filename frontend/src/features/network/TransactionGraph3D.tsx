@@ -4,6 +4,7 @@ import React, { useRef, useCallback, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import * as THREE from "three";
 import type { EnrichedGraphNode, EnrichedGraphEdge } from "./types";
+import { formatUsdAsInr } from "@/lib/currency";
 
 const ForceGraph3D = dynamic(() => import("react-force-graph-3d"), {
   ssr: false,
@@ -275,7 +276,7 @@ export default function TransactionGraph3D({
           const edge = link as EnrichedGraphEdge;
           const source = typeof edge.source === "object" ? (edge.source as EnrichedGraphNode).id : edge.source;
           const target = typeof edge.target === "object" ? (edge.target as EnrichedGraphNode).id : edge.target;
-          return `${source} → ${target}\n${edge.count} transactions · $${edge.amount.toLocaleString()}`;
+          return `${source} → ${target}\n${edge.count} transactions · ${formatUsdAsInr(edge.amount)}`;
         }}
         onNodeClick={handleNodeClick}
         onNodeHover={handleNodeHover}

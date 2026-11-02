@@ -8,6 +8,7 @@ import {
   ArrowDownRight, ArrowUpRight, Cpu
 } from "lucide-react";
 import type { EnrichedGraphNode } from "./types";
+import { formatUsdAsInrCompact } from "@/lib/currency";
 
 interface NodeDetailsDrawerProps {
   node: EnrichedGraphNode | null;
@@ -44,10 +45,9 @@ function fmt(n: number): string {
   return n.toLocaleString("en-IN");
 }
 
-function fmtCurrency(n: number): string {
-  if (n >= 1_000_000) return `₹${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000)     return `₹${(n / 1_000).toFixed(0)}K`;
-  return `₹${fmt(n)}`;
+/** Convert USD amount to INR and format compactly (delegates to central utility). */
+function fmtCurrency(n: number | null | undefined): string {
+  return formatUsdAsInrCompact(n);
 }
 
 export default function NodeDetailsDrawer({ node, onClose }: NodeDetailsDrawerProps) {

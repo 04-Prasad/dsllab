@@ -8,6 +8,7 @@ import { AlertCircle, RefreshCw, Network, GitBranch, RotateCcw } from "lucide-re
 
 import { useNetworkData } from "./hooks/useNetworkData";
 import { useGraphFilters }  from "./hooks/useGraphFilters";
+import { formatUsdAsInr }  from "@/lib/currency";
 import NetworkSidebar       from "./NetworkSidebar";
 import NetworkStats         from "./NetworkStats";
 import NodeDetailsDrawer    from "./NodeDetailsDrawer";
@@ -380,10 +381,10 @@ export default function NetworkPage() {
                     <div className="font-mono text-right text-[#f8fafc]">{hoveredNode.incoming_count} in / {hoveredNode.outgoing_count} out</div>
 
                     <div className="text-[#94a3b8]">Total Received</div>
-                    <div className="font-mono text-right text-blue-300">${hoveredNode.incoming_total.toLocaleString()}</div>
+                    <div className="font-mono text-right text-blue-300">{formatUsdAsInr(hoveredNode.incoming_total)}</div>
 
                     <div className="text-[#94a3b8]">Total Sent</div>
-                    <div className="font-mono text-right text-orange-300">${hoveredNode.outgoing_total.toLocaleString()}</div>
+                    <div className="font-mono text-right text-orange-300">{formatUsdAsInr(hoveredNode.outgoing_total)}</div>
 
                     <div className="text-[#94a3b8]">GraphSAGE</div>
                     <div className="font-mono font-semibold text-right text-[#a855f7]">{hoveredNode.role}</div>

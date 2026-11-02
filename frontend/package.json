@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "node --experimental-strip-types src/lib/__tests__/currency.test.mjs"
   },
   "dependencies": {
     "@types/three": "^0.185.4",
